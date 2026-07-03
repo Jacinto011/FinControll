@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pt" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FinControl - {% block title %}{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="manifest" href="data:application/json,{}">
+</head>
+<body>
+    <!-- Navbar Superior -->
+    <nav class="navbar">
+        <div class="navbar-content">
+            <button class="menu-toggle" id="menuToggle" aria-label="Abrir menu">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+            <div class="navbar-brand">
+                <span class="brand-icon">💰</span>
+                <span class="brand-name">FinControl</span>
+            </div>
+            <div class="navbar-actions">
+                <button class="theme-toggle" id="themeToggle" aria-label="Alternar tema">
+                    <span class="theme-icon">🌙</span>
+                </button>
+                <div class="navbar-user">
+                    <button class="user-toggle" id="userToggle" aria-label="Menu do usuário">
+                        <span class="user-avatar">👤</span>
+                        <span class="user-name-mobile">{{ nome or username or 'Visitante' }}</span>
+                        <span class="dropdown-arrow">▼</span>
+                    </button>
+                    <div class="user-dropdown" id="userDropdown">
+                        <div class="user-info">
+                            <span class="user-avatar-big">👤</span>
+                            <div>
+                                <div class="user-name-dropdown">{{ nome or username or 'Visitante' }}</div>
+                                <div class="user-username">@{{ username or 'visitante' }}</div>
+                            </div>
+                        </div>
+                        <div class="dropdown-divider"></div>
+                        {% if username %}
+                            <a href="{{ url_for('perfil') }}" class="dropdown-item">👤 Perfil</a>
+                            <a href="{{ url_for('configuracoes') }}" class="dropdown-item">⚙️ Configurações</a>
+                            <a href="{{ url_for('relatorios') }}" class="dropdown-item">📊 Relatórios</a>
+                            <a href="{{ url_for('alertas') }}" class="dropdown-item">🔔 Alertas</a>
+                            <a href="{{ url_for('transferencia') }}" class="dropdown-item">🔄 Transferência</a>
+                            <div class="dropdown-divider"></div>
+                            <a href="{{ url_for('logout') }}" class="dropdown-item logout">🚪 Sair</a>
+                        {% else %}
+                            <a href="{{ url_for('login') }}" class="dropdown-item">🔑 Login</a>
+                            <a href="{{ url_for('register') }}" class="dropdown-item">📝 Registar</a>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Sidebar -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <span class="sidebar-brand">💰 FinControl</span>
+            <button class="sidebar-close" id="sidebarClose">✕</button>
+        </div>
+        <nav class="sidebar-nav">
+            {% if username %}
+                <a href="{{ url_for('dashboard') }}" class="sidebar-link {% if request.endpoint == 'dashboard' %}active{% endif %}">
+                    <span class="sidebar-icon">📊</span>
+                    <span class="sidebar-text">Dashboard</span>
+                </a>
+                <a href="{{ url_for('gastos') }}" class="sidebar-link {% if request.endpoint == 'gastos' %}active{% endif %}">
+                    <span class="sidebar-icon">💸</span>
+                    <span class="sidebar-text">Gastos</span>
+                </a>
+                <a href="{{ url_for('recebimentos') }}" class="sidebar-link {% if request.endpoint == 'recebimentos' %}active{% endif %}">
+                    <span class="sidebar-icon">💰</span>
+                    <span class="sidebar-text">Recebimentos</span>
+                </a>
+                <a href="{{ url_for('investimentos') }}" class="sidebar-link {% if request.endpoint == 'investimentos' %}active{% endif %}">
+                    <span class="sidebar-icon">📈</span>
+                    <span class="sidebar-text">Investimentos</span>
+                </a>
+                <a href="{{ url_for('transferencia') }}" class="sidebar-link {% if request.endpoint == 'transferencia' %}active{% endif %}">
+                    <span class="sidebar-icon">🔄</span>
+                    <span class="sidebar-text">Transferências</span>
+                </a>
+                <a href="{{ url_for('relatorios') }}" class="sidebar-link {% if request.endpoint == 'relatorios' %}active{% endif %}">
+                    <span class="sidebar-icon">📊</span>
+                    <span class="sidebar-text">Relatórios</span>
+                </a>
+                <a href="{{ url_for('alertas') }}" class="sidebar-link {% if request.endpoint == 'alertas' %}active{% endif %}">
+                    <span class="sidebar-icon">🔔</span>
+                    <span class="sidebar-text">Alertas</span>
+                </a>
+                <a href="{{ url_for('perfil') }}" class="sidebar-link {% if request.endpoint == 'perfil' %}active{% endif %}">
+                    <span class="sidebar-icon">👤</span>
+                    <span class="sidebar-text">Perfil</span>
+                </a>
+                <a href="{{ url_for('configuracoes') }}" class="sidebar-link {% if request.endpoint == 'configuracoes' %}active{% endif %}">
+                    <span class="sidebar-icon">⚙️</span>
+                    <span class="sidebar-text">Configurações</span>
+                </a>
+            {% else %}
+                <a href="{{ url_for('login') }}" class="sidebar-link">
+                    <span class="sidebar-icon">🔑</span>
+                    <span class="sidebar-text">Login</span>
+                </a>
+                <a href="{{ url_for('register') }}" class="sidebar-link">
+                    <span class="sidebar-icon">📝</span>
+                    <span class="sidebar-text">Registar</span>
+                </a>
+            {% endif %}
+        </nav>
+        <div class="sidebar-footer">
+            {% if username %}
+                <div class="sidebar-moeda">
+                    <span>Moeda: {{ simbolo or 'MT' }}</span>
+                    <span class="sidebar-pais">{{ data.get('pais', 'Moçambique') if data else 'Moçambique' }}</span>
+                </div>
+                <button class="sidebar-logout" onclick="window.location.href='{{ url_for('logout') }}'">
+                    🚪 Sair
+                </button>
+            {% else %}
+                <div class="sidebar-moeda" style="justify-content:center;">
+                    <span>💰 FinControl</span>
+                </div>
+            {% endif %}
+        </div>
+    </aside>
+
+    <!-- Conteúdo Principal -->
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- ===== MODAL NOVO/EDITAR ===== -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modalTitle">Novo Registro</h3>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <form id="modalForm" method="POST">
+                    <input type="hidden" id="modalTransactionId" name="transaction_id">
+                    <div id="modalFormFields">
+                        <!-- Campos dinâmicos -->
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary" id="modalSubmitBtn">💾 Guardar</button>
+                        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== MODAL ELIMINAR ===== -->
+    <div class="modal-overlay" id="deleteModalOverlay">
+        <div class="modal modal-sm">
+            <div class="modal-header">
+                <h3>⚠️ Confirmar Eliminação</h3>
+                <button class="modal-close" onclick="closeDeleteModal()">✕</button>
+            </div>
+            <div class="modal-body" style="text-align:center;">
+                <p style="font-size:48px;margin-bottom:12px;">🗑️</p>
+                <p><strong id="deleteItemName">Item</strong></p>
+                <p style="color:var(--text-secondary);">Tem certeza que deseja eliminar este item? Esta ação não pode ser desfeita.</p>
+                <div class="form-actions" style="justify-content:center;margin-top:16px;">
+                    <a href="#" class="btn btn-danger" id="deleteConfirmBtn">✅ Sim, Eliminar</a>
+                    <button type="button" class="btn btn-secondary" onclick="closeDeleteModal()">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== TOAST NOTIFICATIONS ===== -->
+    <div id="toastContainer"></div>
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>

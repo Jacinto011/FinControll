@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% block title %}Investimentos{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="header-actions">
+        <h1>📈 Investimentos</h1>
+        <button class="btn btn-purple" onclick="openModal('investimento')">➕ Novo Investimento</button>
+    </div>
+    <p class="page-subtitle">Gerencie seus investimentos</p>
+</div>
+
+<div class="card card-purple summary-card">
+    <div class="summary-content">
+        <h3>Total Investido</h3>
+        <p class="big-number">{{ "%.2f"|format(total_invested) }} {{ simbolo }}</p>
+        <p class="summary-sub">{{ investments|length }} investimentos registados</p>
+    </div>
+</div>
+
+<div class="card">
+    <h3>📋 Lista de Investimentos</h3>
+    {% if investments %}
+        {% for inv in investments %}
+            <div class="transaction-item">
+                <div class="transaction-info">
+                    <span class="transaction-icon">📊</span>
+                    <div>
+                        <div class="transaction-description">{{ inv.description }}</div>
+                        <div class="transaction-date">{{ inv.date }}</div>
+                    </div>
+                </div>
+                <div class="transaction-actions">
+                    <span class="text-purple">📈 {{ "%.2f"|format(inv.amount) }} {{ simbolo }}</span>
+                    <div class="action-buttons">
+                        <button class="btn-edit" onclick="openEditModal('investimento', '{{ inv.id }}')" title="Editar">✏️</button>
+                        <button class="btn-delete" onclick="openDeleteModal('{{ inv.id }}', '{{ inv.description }}')" title="Eliminar">🗑️</button>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <p class="empty-text">Nenhum investimento registado. Clique em "Novo Investimento" para começar!</p>
+    {% endif %}
+</div>
+
+<!-- Dados para o Modal (escondido) -->
+<div style="display:none;">
+    <div id="investimentoFormData">
+        <div class="form-group">
+            <label>Nome do Investimento</label>
+            <input type="text" name="description" placeholder="Ex: Fundo de Emergência" required>
+        </div>
+        <div class="form-group">
+            <label>Valor ({{ simbolo }})</label>
+            <input type="number" step="0.01" name="amount" placeholder="0.00" required>
+        </div>
+        <div class="form-group">
+            <label>De onde saiu?</label>
+            <select name="wallet_id" required>
+                {% for wallet in wallets %}
+                    <option value="{{ wallet.id }}">{{ wallet.icon or '💳' }} {{ wallet.name }} ({{ "%.2f"|format(wallet.balance) }} {{ simbolo }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Data</label>
+            <input type="date" name="date">
+        </div>
+        <div class="form-group">
+            <label>Observação</label>
+            <input type="text" name="notes" placeholder="Notas adicionais">
+        </div>
+    </div>
+</div>
+
+<script>
+// Dados das transações para edição
+const investimentosData = {
+    {% for inv in investments %}
+        "{{ inv.id }}": {
+            description: "{{ inv.description|safe }}",
+            amount: "{{ inv.amount }}",
+            wallet_id: "{{ inv.wallet_id }}",
+            date: "{{ inv.date }}",
+            notes: "{{ inv.notes|safe }}"
+        },
+    {% endfor %}
+};
+</script>
+{% endblock %}

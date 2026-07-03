@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Registro{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-box">
+        <div class="auth-header">
+            <h1>💰 FinControl</h1>
+            <p>Crie sua conta gratuita</p>
+        </div>
+        
+        {% if error %}
+            <div class="alert alert-error">{{ error }}</div>
+        {% endif %}
+        
+        <form method="POST" class="auth-form">
+            <div class="form-group">
+                <label for="username">Usuário *</label>
+                <input type="text" id="username" name="username" placeholder="Escolha um nome de usuário" required>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="nome">Nome</label>
+                    <input type="text" id="nome" name="nome" placeholder="Seu nome">
+                </div>
+                <div class="form-group">
+                    <label for="apelido">Apelido</label>
+                    <input type="text" id="apelido" name="apelido" placeholder="Seu apelido">
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="pais">País</label>
+                    <select id="pais" name="pais">
+                        {% for pais in paises %}
+                            <option value="{{ pais }}" {% if pais == 'Moçambique' %}selected{% endif %}>{{ pais }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="moeda">Moeda</label>
+                    <select id="moeda" name="moeda">
+                        {% for cod, moeda in moedas.items() %}
+                            <option value="{{ cod }}" {% if cod == 'MZN' %}selected{% endif %}>
+                                {{ moeda.simbolo }} - {{ moeda.nome }} ({{ moeda.pais }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Senha *</label>
+                <input type="password" id="password" name="password" placeholder="Crie uma senha segura" required>
+            </div>
+            <div class="form-group">
+                <label for="confirm_password">Confirmar Senha *</label>
+                <input type="password" id="confirm_password" name="confirm_password" placeholder="Confirme sua senha" required>
+            </div>
+            
+            <button type="submit" class="btn btn-primary btn-block">Criar Conta</button>
+        </form>
+        
+        <div class="auth-footer">
+            <p>Já tem conta? <a href="{{ url_for('login') }}">Faça login</a></p>
+        </div>
+    </div>
+</div>
+{% endblock %}

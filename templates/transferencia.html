@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Transferência{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>🔄 Transferência entre Carteiras</h1>
+    <p class="page-subtitle">Movimente dinheiro entre suas carteiras</p>
+</div>
+
+{% if mensagem %}
+    <div class="alert alert-success" id="successToast">{{ mensagem }}</div>
+{% endif %}
+
+{% if erro %}
+    <div class="alert alert-danger" id="errorToast">{{ erro }}</div>
+{% endif %}
+
+<div class="row">
+    <div class="col">
+        <div class="card">
+            <h3>📤 Depositar / Levantar</h3>
+            <form method="POST" id="transferForm">
+                <div class="form-group">
+                    <label>📤 De (Origem)</label>
+                    <select name="from_wallet_id" required>
+                        <option value="">Selecione a carteira de origem</option>
+                        {% for wallet in wallets %}
+                            <option value="{{ wallet.id }}">
+                                {{ wallet.icon or '💳' }} {{ wallet.name }} ({{ "%.2f"|format(wallet.balance) }} {{ simbolo }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>📥 Para (Destino)</label>
+                    <select name="to_wallet_id" required>
+                        <option value="">Selecione a carteira de destino</option>
+                        {% for wallet in wallets %}
+                            <option value="{{ wallet.id }}">
+                                {{ wallet.icon or '💳' }} {{ wallet.name }} ({{ "%.2f"|format(wallet.balance) }} {{ simbolo }})
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Valor ({{ simbolo }})</label>
+                    <input type="number" step="0.01" name="amount" placeholder="0.00" required>
+                </div>
+                <div class="form-group">
+                    <label>Descrição</label>
+                    <input type="text" name="description" placeholder="Ex: Depósito M-Pesa" value="Movimentação">
+                </div>
+                <div class="form-group">
+                    <label>Data</label>
+                    <input type="date" name="date">
+                </div>
+                <button type="submit" class="btn btn-primary" onclick="return confirmTransfer()">🔄 Realizar Transferência</button>
+            </form>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card">
+            <h3>💡 Exemplos de Transferência</h3>
+            <div class="tip-item">
+                <span class="tip-icon">💰</span>
+                <div>
+                    <h4>Depósito</h4>
+                    <p>De: <strong>Dinheiro em Mão</strong> → Para: <strong>M-Pesa</strong></p>
+                    <small>Quando depositas dinheiro físico na M-Pesa</small>
+                </div>
+            </div>
+            <div class="tip-item">
+                <span class="tip-icon">🏦</span>
+                <div>
+                    <h4>Levantamento</h4>
+                    <p>De: <strong>Conta Bancária</strong> → Para: <strong>Dinheiro em Mão</strong></p>
+                    <small>Quando levantas dinheiro do banco</small>
+                </div>
+            </div>
+            <div class="tip-item">
+                <span class="tip-icon">📱</span>
+                <div>
+                    <h4>Transferência Mobile</h4>
+                    <p>De: <strong>M-Pesa</strong> → Para: <strong>E-mola</strong></p>
+                    <small>Quando transferes entre carteiras móveis</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <h3>📊 Saldo das Carteiras</h3>
+    {% for wallet in wallets %}
+        <div class="wallet-item">
+            <span class="wallet-icon">{{ wallet.icon or '💳' }}</span>
+            <span class="wallet-name">{{ wallet.name }}</span>
+            <span class="wallet-balance">{{ "%.2f"|format(wallet.balance) }} {{ simbolo }}</span>
+            <span class="wallet-type">{{ wallet.type.replace('_', ' ').title() }}</span>
+        </div>
+    {% endfor %}
+</div>
+
+<script>
+function confirmTransfer() {
+    const fromWallet = document.querySelector('select[name="from_wallet_id"]');
+    const toWallet = document.querySelector('select[name="to_wallet_id"]');
+    const amount = document.querySelector('input[name="amount"]');
+    
+    if (!fromWallet.value || !toWallet.value || !amount.value) {
+        showToast('Por favor, preencha todos os campos', 'error');
+        return false;
+    }
+    
+    if (fromWallet.value === toWallet.value) {
+        showToast('Não pode transferir para a mesma carteira', 'error');
+        return false;
+    }
+    
+    return confirm(`Confirmar transferência de ${amount.value} ${'{{ simbolo }}'}?`);
+}
+</script>
+{% endblock %}

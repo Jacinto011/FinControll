@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Relatórios{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>📊 Relatórios</h1>
+    <p class="page-subtitle">Análise detalhada das suas finanças</p>
+</div>
+
+<!-- Resumo -->
+<div class="dashboard-grid">
+    <div class="card card-primary">
+        <h3>Total Recebido</h3>
+        <p class="big-number">{{ "%.2f"|format(total_received) }} {{ simbolo }}</p>
+    </div>
+    <div class="card card-danger">
+        <h3>Total Gastos</h3>
+        <p class="big-number">{{ "%.2f"|format(total_expenses) }} {{ simbolo }}</p>
+    </div>
+    <div class="card card-purple">
+        <h3>Total Investido</h3>
+        <p class="big-number">{{ "%.2f"|format(total_invested) }} {{ simbolo }}</p>
+    </div>
+    <div class="card card-success">
+        <h3>Saldo</h3>
+        <p class="big-number">{{ "%.2f"|format(total_received - total_expenses - total_invested) }} {{ simbolo }}</p>
+    </div>
+</div>
+
+<!-- Gastos por Categoria -->
+<div class="row">
+    <div class="col">
+        <div class="card">
+            <h3>📊 Gastos por Categoria</h3>
+            {% if gastos_categoria %}
+                {% for cat_id, valor in gastos_categoria.items() %}
+                    {% set nome_cat = cat_names.get(cat_id, 'Desconhecida') %}
+                    <div class="report-item">
+                        <span class="report-label">{{ nome_cat }}</span>
+                        <div class="report-bar">
+                            <div class="report-bar-fill" style="width: {{ (valor / total_expenses * 100) if total_expenses > 0 else 0 }}%; background: #EF4444;"></div>
+                        </div>
+                        <span class="report-value">{{ "%.2f"|format(valor) }} {{ simbolo }} ({{ "%.1f"|format(valor / total_expenses * 100) if total_expenses > 0 else 0 }}%)</span>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p class="empty-text">Nenhum gasto registado</p>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col">
+        <div class="card">
+            <h3>📈 Receitas por Categoria</h3>
+            {% if receitas_categoria %}
+                {% for cat_id, valor in receitas_categoria.items() %}
+                    {% set nome_cat = cat_names.get(cat_id, 'Desconhecida') %}
+                    <div class="report-item">
+                        <span class="report-label">{{ nome_cat }}</span>
+                        <div class="report-bar">
+                            <div class="report-bar-fill" style="width: {{ (valor / total_received * 100) if total_received > 0 else 0 }}%; background: #10B981;"></div>
+                        </div>
+                        <span class="report-value">{{ "%.2f"|format(valor) }} {{ simbolo }} ({{ "%.1f"|format(valor / total_received * 100) if total_received > 0 else 0 }}%)</span>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p class="empty-text">Nenhuma receita registada</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Evolução Mensal -->
+<div class="card">
+    <h3>📅 Evolução Mensal</h3>
+    {% if transacoes_mes %}
+        <div class="table-responsive">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Mês</th>
+                        <th>Receitas</th>
+                        <th>Gastos</th>
+                        <th>Investimentos</th>
+                        <th>Saldo</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for mes, valores in transacoes_mes.items()|sort %}
+                        <tr>
+                            <td>{{ mes }}</td>
+                            <td class="text-green">+{{ "%.2f"|format(valores.income) }}</td>
+                            <td class="text-red">-{{ "%.2f"|format(valores.expense) }}</td>
+                            <td class="text-purple">{{ "%.2f"|format(valores.investment) }}</td>
+                            <td class="{% if valores.income - valores.expense - valores.investment >= 0 %}text-green{% else %}text-red{% endif %}">
+                                {{ "%.2f"|format(valores.income - valores.expense - valores.investment) }}
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="empty-text">Nenhuma transação registada</p>
+    {% endif %}
+</div>
+{% endblock %}

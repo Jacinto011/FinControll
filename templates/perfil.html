@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Perfil{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>👤 Perfil</h1>
+    <p class="page-subtitle">Informações da sua conta</p>
+</div>
+
+<div class="row">
+    <div class="col">
+        <div class="card">
+            <h3>📋 Dados Pessoais</h3>
+            <div class="profile-item">
+                <span class="profile-label">Nome</span>
+                <span class="profile-value">{{ data.get('nome', username) }}</span>
+            </div>
+            <div class="profile-item">
+                <span class="profile-label">Apelido</span>
+                <span class="profile-value">{{ data.get('apelido', '') }}</span>
+            </div>
+            <div class="profile-item">
+                <span class="profile-label">Usuário</span>
+                <span class="profile-value">@{{ username }}</span>
+            </div>
+            <div class="profile-item">
+                <span class="profile-label">País</span>
+                <span class="profile-value">{{ data.get('pais', 'Moçambique') }}</span>
+            </div>
+            <div class="profile-item">
+                <span class="profile-label">Moeda</span>
+                <span class="profile-value">{{ moeda }} ({{ simbolo }})</span>
+            </div>
+            <div class="profile-item">
+                <span class="profile-label">Data de Registo</span>
+                <span class="profile-value">{{ data.get('created_at', '').split('T')[0] if data.get('created_at') else 'N/A' }}</span>
+            </div>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card">
+            <h3>📊 Estatísticas</h3>
+            <div class="profile-item">
+                <span class="profile-label">Carteiras</span>
+                <span class="profile-value">{{ data.wallets|length }}</span>
+            </div>
+            <div class="profile-item">
+                <span class="profile-label">Transações</span>
+                <span class="profile-value">{{ data.transactions|length }}</span>
+            </div>
+            <div class="profile-item">
+                <span class="profile-label">Investimentos</span>
+                <span class="profile-value">{{ data.investments|length }}</span>
+            </div>
+            <div class="profile-item">
+                <span class="profile-label">Categorias de Gastos</span>
+                <span class="profile-value">{{ data.categories.expense|length }}</span>
+            </div>
+            <div class="profile-item">
+                <span class="profile-label">Categorias de Receitas</span>
+                <span class="profile-value">{{ data.categories.income|length }}</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

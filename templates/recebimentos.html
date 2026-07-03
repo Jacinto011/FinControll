@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+
+{% block title %}Recebimentos{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="header-actions">
+        <h1>💰 Recebimentos</h1>
+        <button class="btn btn-success" onclick="openModal('recebimento')">➕ Novo Recebimento</button>
+    </div>
+    <p class="page-subtitle">Gerencie seus recebimentos</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>📋 Lista de Recebimentos</h3>
+        <span class="card-badge">Total: {{ "%.2f"|format(total_recebimentos) }} {{ simbolo }}</span>
+    </div>
+    {% if transactions %}
+        {% for t in transactions %}
+            <div class="transaction-item">
+                <div class="transaction-info">
+                    <span class="transaction-icon">📈</span>
+                    <div>
+                        <div class="transaction-description">{{ t.description }}</div>
+                        <div class="transaction-date">{{ t.date }}</div>
+                        <div class="transaction-category">
+                            {% for cat in categories %}
+                                {% if cat.id == t.category_id %}
+                                    {{ cat.icon }} {{ cat.name }}
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <div class="transaction-actions">
+                    <span class="text-green">+{{ "%.2f"|format(t.amount) }} {{ simbolo }}</span>
+                    <div class="action-buttons">
+                        <button class="btn-edit" onclick="openEditModal('recebimento', '{{ t.id }}')" title="Editar">✏️</button>
+                        <button class="btn-delete" onclick="openDeleteModal('{{ t.id }}', '{{ t.description }}')" title="Eliminar">🗑️</button>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <p class="empty-text">Nenhum recebimento registado. Clique em "Novo Recebimento" para começar!</p>
+    {% endif %}
+</div>
+
+<!-- Dados para o Modal (escondido) -->
+<div style="display:none;">
+    <div id="recebimentoFormData">
+        <div class="form-group">
+            <label>Descrição</label>
+            <input type="text" name="description" placeholder="Ex: Salário" required>
+        </div>
+        <div class="form-group">
+            <label>Valor ({{ simbolo }})</label>
+            <input type="number" step="0.01" name="amount" placeholder="0.00" required>
+        </div>
+        <div class="form-group">
+            <label>Categoria</label>
+            <select name="category_id" required>
+                {% for cat in categories %}
+                    <option value="{{ cat.id }}">{{ cat.icon }} {{ cat.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Para onde foi?</label>
+            <select name="wallet_id" required>
+                {% for wallet in wallets %}
+                    <option value="{{ wallet.id }}">{{ wallet.icon or '💳' }} {{ wallet.name }} ({{ "%.2f"|format(wallet.balance) }} {{ simbolo }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Data</label>
+            <input type="date" name="date">
+        </div>
+        <div class="form-group">
+            <label>Observação</label>
+            <input type="text" name="notes" placeholder="Notas adicionais">
+        </div>
+    </div>
+</div>
+
+<script>
+// Dados das transações para edição
+const recebimentosData = {
+    {% for t in transactions %}
+        "{{ t.id }}": {
+            description: "{{ t.description|safe }}",
+            amount: "{{ t.amount }}",
+            category_id: "{{ t.category_id }}",
+            wallet_id: "{{ t.wallet_id }}",
+            date: "{{ t.date }}",
+            notes: "{{ t.notes|safe }}"
+        },
+    {% endfor %}
+};
+</script>
+{% endblock %}

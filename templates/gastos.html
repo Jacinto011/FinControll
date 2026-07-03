@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+
+{% block title %}Gastos{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="header-actions">
+        <h1>💸 Gastos</h1>
+        <button class="btn btn-primary" onclick="openModal('gasto')">➕ Novo Gasto</button>
+    </div>
+    <p class="page-subtitle">Gerencie seus gastos</p>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h3>📋 Lista de Gastos</h3>
+        <span class="card-badge">Total: {{ "%.2f"|format(total_gastos) }} {{ simbolo }}</span>
+    </div>
+    {% if transactions %}
+        {% for t in transactions %}
+            <div class="transaction-item">
+                <div class="transaction-info">
+                    <span class="transaction-icon">💸</span>
+                    <div>
+                        <div class="transaction-description">{{ t.description }}</div>
+                        <div class="transaction-date">{{ t.date }}</div>
+                        <div class="transaction-category">
+                            {% for cat in categories %}
+                                {% if cat.id == t.category_id %}
+                                    {{ cat.icon }} {{ cat.name }}
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <div class="transaction-actions">
+                    <span class="text-red">-{{ "%.2f"|format(t.amount) }} {{ simbolo }}</span>
+                    <div class="action-buttons">
+                        <button class="btn-edit" onclick="openEditModal('gasto', '{{ t.id }}')" title="Editar">✏️</button>
+                        <button class="btn-delete" onclick="openDeleteModal('{{ t.id }}', '{{ t.description }}')" title="Eliminar">🗑️</button>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <p class="empty-text">Nenhum gasto registado. Clique em "Novo Gasto" para começar!</p>
+    {% endif %}
+</div>
+
+<!-- Dados para o Modal (escondido) -->
+<div style="display:none;">
+    <div id="gastoFormData">
+        <div class="form-group">
+            <label>Descrição</label>
+            <input type="text" name="description" placeholder="Ex: Supermercado" required>
+        </div>
+        <div class="form-group">
+            <label>Valor ({{ simbolo }})</label>
+            <input type="number" step="0.01" name="amount" placeholder="0.00" required>
+        </div>
+        <div class="form-group">
+            <label>Categoria</label>
+            <select name="category_id" required>
+                {% for cat in categories %}
+                    <option value="{{ cat.id }}">{{ cat.icon }} {{ cat.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>De onde saiu?</label>
+            <select name="wallet_id" required>
+                {% for wallet in wallets %}
+                    <option value="{{ wallet.id }}">{{ wallet.icon or '💳' }} {{ wallet.name }} ({{ "%.2f"|format(wallet.balance) }} {{ simbolo }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Data</label>
+            <input type="date" name="date">
+        </div>
+        <div class="form-group">
+            <label>Observação</label>
+            <input type="text" name="notes" placeholder="Notas adicionais">
+        </div>
+    </div>
+</div>
+
+<script>
+// Dados das transações para edição
+const gastosData = {
+    {% for t in transactions %}
+        "{{ t.id }}": {
+            description: "{{ t.description|safe }}",
+            amount: "{{ t.amount }}",
+            category_id: "{{ t.category_id }}",
+            wallet_id: "{{ t.wallet_id }}",
+            date: "{{ t.date }}",
+            notes: "{{ t.notes|safe }}"
+        },
+    {% endfor %}
+};
+
+function openModal(tipo) {
+    const modal = document.getElementById('modalOverlay');
+    const title = document.getElementById('modalTitle');
+    const form = document.getElementById('modalForm');
+    const fields = document.getElementById('modalFormFields');
+    const submitBtn = document.getElementById('modalSubmitBtn');
+    
+    // Limpar campos
+    document.getElementById('modalTransactionId').value = '';
+    
+    // Copiar campos do tipo
+    const source = document.getElementById(tipo + 'FormData');
+    fields.innerHTML = source.innerHTML;
+    
+    // Definir ação do formulário
+    if (tipo === 'gasto') {
+        form.action = "{{ url_for('gastos') }}";
+        title.textContent = '💸 Novo Gasto';
+        submitBtn.textContent = '💸 Registrar Gasto';
+    } else if (tipo === 'recebimento') {
+        form.action = "{{ url_for('recebimentos') }}";
+        title.textContent = '💰 Novo Recebimento';
+        submitBtn.textContent = '💰 Registrar Recebimento';
+    } else if (tipo === 'investimento') {
+        form.action = "{{ url_for('investimentos') }}";
+        title.textContent = '📈 Novo Investimento';
+        submitBtn.textContent = '📈 Registrar Investimento';
+    }
+    
+    modal.classList.add('open');
+}
+
+function openEditModal(tipo, id) {
+    const modal = document.getElementById('modalOverlay');
+    const title = document.getElementById('modalTitle');
+    const form = document.getElementById('modalForm');
+    const fields = document.getElementById('modalFormFields');
+    const submitBtn = document.getElementById('modalSubmitBtn');
+    const transactionId = document.getElementById('modalTransactionId');
+    
+    // Buscar dados
+    let data = {};
+    let dataKey = tipo === 'gasto' ? gastosData : 
+                  tipo === 'recebimento' ? recebimentosData : 
+                  investimentosData;
+    
+    if (dataKey && dataKey[id]) {
+        data = dataKey[id];
+    }
+    
+    // Copiar campos do tipo
+    const source = document.getElementById(tipo + 'FormData');
+    fields.innerHTML = source.innerHTML;
+    
+    // Preencher campos
+    const inputs = fields.querySelectorAll('input, select');
+    inputs.forEach(input => {
+        if (data[input.name] !== undefined) {
+            input.value = data[input.name];
+        }
+    });
+    
+    // Definir ação do formulário
+    if (tipo === 'gasto') {
+        form.action = "{{ url_for('gastos') }}";
+        title.textContent = '✏️ Editar Gasto';
+        submitBtn.textContent = '💾 Atualizar Gasto';
+    } else if (tipo === 'recebimento') {
+        form.action = "{{ url_for('recebimentos') }}";
+        title.textContent = '✏️ Editar Recebimento';
+        submitBtn.textContent = '💾 Atualizar Recebimento';
+    } else if (tipo === 'investimento') {
+        form.action = "{{ url_for('investimentos') }}";
+        title.textContent = '✏️ Editar Investimento';
+        submitBtn.textContent = '💾 Atualizar Investimento';
+    }
+    
+    transactionId.value = id;
+    modal.classList.add('open');
+}
+
+function openDeleteModal(id, name) {
+    const modal = document.getElementById('deleteModalOverlay');
+    const confirmBtn = document.getElementById('deleteConfirmBtn');
+    const itemName = document.getElementById('deleteItemName');
+    
+    itemName.textContent = name;
+    confirmBtn.href = "{{ url_for('deletar_transacao', transaction_id='') }}" + id;
+    modal.classList.add('open');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block title %}Alertas Inteligentes{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>🔔 Alertas Inteligentes</h1>
+    <p class="page-subtitle">Análise personalizada das suas finanças</p>
+</div>
+
+<div class="alerts-container">
+    {% for alerta in alertas %}
+        <div class="alert alert-{{ alerta.tipo }}">
+            <div class="alert-content">
+                <span class="alert-icon">
+                    {% if alerta.tipo == 'success' %}✅
+                    {% elif alerta.tipo == 'warning' %}⚠️
+                    {% elif alerta.tipo == 'danger' %}❌
+                    {% else %}ℹ️{% endif %}
+                </span>
+                <div class="alert-message">{{ alerta.mensagem }}</div>
+            </div>
+        </div>
+    {% endfor %}
+</div>
+
+<div class="card">
+    <h3>💡 Dicas Financeiras</h3>
+    <ul class="tips-list">
+        <li>📌 Registe todas as suas transações diariamente para melhor controlo</li>
+        <li>📌 Crie um fundo de emergência equivalente a 3-6 meses de despesas</li>
+        <li>📌 Tente poupar pelo menos 20% do que recebe</li>
+        <li>📌 Revise seus gastos mensais para identificar desperdícios</li>
+        <li>📌 Invista em conhecimento e educação financeira</li>
+    </ul>
+</div>
+
+<div class="card">
+    <h3>📊 Resumo Financeiro</h3>
+    <div class="summary-grid">
+        <div class="summary-item">
+            <span class="summary-label">Situação</span>
+            {% set total_received = 0 %}
+            {% set total_expenses = 0 %}
+            {% for t in data.transactions %}
+                {% if t.type == 'income' %}{% set total_received = total_received + t.amount %}
+                {% elif t.type == 'expense' %}{% set total_expenses = total_expenses + t.amount %}
+                {% endif %}
+            {% endfor %}
+            {% if total_received > total_expenses %}
+                <span class="summary-value text-green">✅ Positivo</span>
+            {% elif total_received == total_expenses %}
+                <span class="summary-value text-yellow">⚖️ Equilibrado</span>
+            {% else %}
+                <span class="summary-value text-red">⚠️ Negativo</span>
+            {% endif %}
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">Transações</span>
+            <span class="summary-value">{{ data.transactions|length }}</span>
+        </div>
+        <div class="summary-item">
+            <span class="summary-label">Carteiras</span>
+            <span class="summary-value">{{ data.wallets|length }}</span>
+        </div>
+    </div>
+</div>
+{% endblock %}

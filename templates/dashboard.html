@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>👋 Olá, {{ nome }}</h1>
+    <p class="page-subtitle">Aqui está o resumo das suas finanças</p>
+</div>
+
+<div class="dashboard-grid">
+    <div class="card card-primary">
+        <div class="card-icon">💰</div>
+        <h3>Saldo Total</h3>
+        <p class="big-number">{{ "%.2f"|format(total_balance) }} {{ simbolo }}</p>
+    </div>
+    <div class="card card-success">
+        <div class="card-icon">📈</div>
+        <h3>Recebido</h3>
+        <p class="big-number">{{ "%.2f"|format(total_received) }} {{ simbolo }}</p>
+    </div>
+    <div class="card card-danger">
+        <div class="card-icon">💸</div>
+        <h3>Gastos</h3>
+        <p class="big-number">{{ "%.2f"|format(total_expenses) }} {{ simbolo }}</p>
+    </div>
+    <div class="card card-purple">
+        <div class="card-icon">📊</div>
+        <h3>Investido</h3>
+        <p class="big-number">{{ "%.2f"|format(total_invested) }} {{ simbolo }}</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col">
+        <div class="card">
+            <h3>💰 Minhas Carteiras</h3>
+            {% if wallets %}
+                {% for wallet in wallets %}
+                    <div class="wallet-item">
+                        <span class="wallet-icon">{{ wallet.icon or '💳' }}</span>
+                        <span class="wallet-name">{{ wallet.name }}</span>
+                        <span class="wallet-balance">{{ "%.2f"|format(wallet.balance) }} {{ simbolo }}</span>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p class="empty-text">Nenhuma carteira criada</p>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col">
+        <div class="card">
+            <h3>📋 Últimas Transações</h3>
+            {% if transactions %}
+                {% for t in transactions %}
+                    <div class="transaction-item">
+                        <div class="transaction-info">
+                            <span class="transaction-icon">
+                                {% if t.type == 'income' %}📈
+                                {% elif t.type == 'expense' %}💸
+                                {% else %}📊{% endif %}
+                            </span>
+                            <div>
+                                <div class="transaction-description">{{ t.description }}</div>
+                                <div class="transaction-date">{{ t.date }}</div>
+                            </div>
+                        </div>
+                        <div class="transaction-amount {% if t.type == 'income' %}text-green{% elif t.type == 'expense' %}text-red{% else %}text-purple{% endif %}">
+                            {% if t.type == 'income' %}+{% elif t.type == 'expense' %}-{% else %}📈{% endif %}
+                            {{ "%.2f"|format(t.amount) }} {{ simbolo }}
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p class="empty-text">Nenhuma transação registada</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="quick-actions">
+    <h3>⚡ Ações Rápidas</h3>
+    <div class="quick-actions-grid">
+        <a href="{{ url_for('gastos') }}" class="quick-action-btn btn-danger">💸 Gasto</a>
+        <a href="{{ url_for('recebimentos') }}" class="quick-action-btn btn-success">💰 Recebimento</a>
+        <a href="{{ url_for('investimentos') }}" class="quick-action-btn btn-purple">📈 Investimento</a>
+        <a href="{{ url_for('transferencia') }}" class="quick-action-btn btn-primary">🔄 Transferência</a>
+    </div>
+</div>
+{% endblock %}
