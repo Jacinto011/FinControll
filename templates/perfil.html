@@ -14,11 +14,11 @@
             <h3>📋 Dados Pessoais</h3>
             <div class="profile-item">
                 <span class="profile-label">Nome</span>
-                <span class="profile-value">{{ data.get('nome', username) }}</span>
+                <span class="profile-value">{{ data.user.nome if data.user and data.user.nome else username }}</span>
             </div>
             <div class="profile-item">
                 <span class="profile-label">Apelido</span>
-                <span class="profile-value">{{ data.get('apelido', '') }}</span>
+                <span class="profile-value">{{ data.user.apelido if data.user and data.user.apelido else '' }}</span>
             </div>
             <div class="profile-item">
                 <span class="profile-label">Usuário</span>
@@ -26,7 +26,7 @@
             </div>
             <div class="profile-item">
                 <span class="profile-label">País</span>
-                <span class="profile-value">{{ data.get('pais', 'Moçambique') }}</span>
+                <span class="profile-value">{{ data.user.pais if data.user and data.user.pais else 'Moçambique' }}</span>
             </div>
             <div class="profile-item">
                 <span class="profile-label">Moeda</span>
@@ -34,7 +34,17 @@
             </div>
             <div class="profile-item">
                 <span class="profile-label">Data de Registo</span>
-                <span class="profile-value">{{ data.get('created_at', '').split('T')[0] if data.get('created_at') else 'N/A' }}</span>
+                <span class="profile-value">
+                    {% if data.user and data.user.created_at %}
+                        {% if data.user.created_at is string %}
+                            {{ data.user.created_at.split('T')[0] }}
+                        {% else %}
+                            {{ data.user.created_at.strftime('%Y-%m-%d') }}
+                        {% endif %}
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </span>
             </div>
         </div>
     </div>
@@ -51,17 +61,55 @@
             </div>
             <div class="profile-item">
                 <span class="profile-label">Investimentos</span>
-                <span class="profile-value">{{ data.investments|length }}</span>
-            </div>
-            <div class="profile-item">
-                <span class="profile-label">Categorias de Gastos</span>
-                <span class="profile-value">{{ data.categories.expense|length }}</span>
-            </div>
-            <div class="profile-item">
-                <span class="profile-label">Categorias de Receitas</span>
-                <span class="profile-value">{{ data.categories.income|length }}</span>
+                <span class="profile-value">
+                    {% set investimentos = data.transactions|selectattr('type', 'equalto', 'investment')|list %}
+                    {{ investimentos|length }}
+                </span>
             </div>
         </div>
     </div>
+</div>
+
+<div class="card">
+    <h3>💰 Suas Carteiras</h3>
+    {% if data.wallets %}
+        {% for wallet in data.wallets %}
+            <div class="wallet-item">
+                <span class="wallet-icon">{{ wallet.icon or '💳' }}</span>
+                <span class="wallet-name">{{ wallet.name }}</span>
+                <span class="wallet-balance">{{ "%.2f"|format(wallet.balance) }} {{ simbolo }}</span>
+                <span class="wallet-type">{{ wallet.type.replace('_', ' ').title() }}</span>
+            </div>
+        {% endfor %}
+    {% else %}
+        <p class="empty-text">Nenhuma carteira criada</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h3>📋 Últimas Transações</h3>
+    {% if data.transactions %}
+        {% for t in data.transactions[:5] %}
+            <div class="transaction-item">
+                <div class="transaction-info">
+                    <span class="transaction-icon">
+                        {% if t.type == 'income' %}📈
+                        {% elif t.type == 'expense' %}💸
+                        {% else %}📊{% endif %}
+                    </span>
+                    <div>
+                        <div class="transaction-description">{{ t.description }}</div>
+                        <div class="transaction-date">{{ t.date }}</div>
+                    </div>
+                </div>
+                <div class="transaction-amount {% if t.type == 'income' %}text-green{% elif t.type == 'expense' %}text-red{% else %}text-purple{% endif %}">
+                    {% if t.type == 'income' %}+{% elif t.type == 'expense' %}-{% else %}📈{% endif %}
+                    {{ "%.2f"|format(t.amount) }} {{ simbolo }}
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <p class="empty-text">Nenhuma transação registada</p>
+    {% endif %}
 </div>
 {% endblock %}

@@ -4,14 +4,16 @@
 
 {% block content %}
 <div class="page-header">
-    <h1>⚙️ Configurações</h1>
+    <div class="header-actions">
+        <h1>⚙️ Configurações</h1>
+    </div>
     <p class="page-subtitle">Personalize o FinControl</p>
 </div>
 
 <!-- Configurações Gerais -->
 <div class="card">
     <h3>🌐 Configurações Gerais</h3>
-    <form method="POST">
+    <form method="POST" id="configForm">
         <div class="form-group">
             <label>Nome</label>
             <input type="text" name="nome" value="{{ nome }}">
@@ -46,101 +48,323 @@
 
 <!-- Carteiras -->
 <div class="card">
-    <h3>🏦 Carteiras</h3>
-    <form action="{{ url_for('criar_carteira') }}" method="POST">
-        <div class="form-row">
-            <div class="form-group">
-                <label>Nome da Carteira</label>
-                <input type="text" name="name" placeholder="Ex: BCI" required>
-            </div>
-            <div class="form-group">
-                <label>Tipo</label>
-                <select name="type" required>
-                    <option value="physical_cash">💰 Dinheiro em Mão</option>
-                    <option value="mobile_money">📱 Mobile Money</option>
-                    <option value="bank_account">🏦 Conta Bancária</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label>Saldo Inicial ({{ simbolo }})</label>
-                <input type="number" step="0.01" name="balance" value="0">
-            </div>
-            <div class="form-group">
-                <label>Ícone</label>
-                <input type="text" name="icon" placeholder="💳" maxlength="2">
-            </div>
-        </div>
-        <button type="submit" class="btn btn-primary">➕ Adicionar Carteira</button>
-    </form>
+    <div class="card-header">
+        <h3>🏦 Carteiras</h3>
+        <button class="btn btn-primary btn-sm" onclick="openModal('carteira')">➕ Nova Carteira</button>
+    </div>
     
-    <hr>
-    
-    {% for wallet in wallets %}
-        <div class="wallet-item">
-            <span class="wallet-icon">{{ wallet.icon or '💳' }}</span>
-            <span class="wallet-name">{{ wallet.name }}</span>
-            <span class="wallet-balance">{{ "%.2f"|format(wallet.balance) }} {{ simbolo }}</span>
-            <span class="wallet-type">{{ wallet.type.replace('_', ' ').title() }}</span>
-            <a href="{{ url_for('deletar_carteira', wallet_id=wallet.id) }}" class="btn-delete" onclick="return confirm('Eliminar esta carteira?')">✕</a>
-        </div>
-    {% endfor %}
+    {% if wallets %}
+        {% for wallet in wallets %}
+            <div class="wallet-item">
+                <span class="wallet-icon">{{ wallet.icon or '💳' }}</span>
+                <span class="wallet-name">{{ wallet.name }}</span>
+                <span class="wallet-balance">{{ "%.2f"|format(wallet.balance) }} {{ simbolo }}</span>
+                <span class="wallet-type">{{ wallet.type.replace('_', ' ').title() }}</span>
+                <div class="action-buttons">
+                    <button class="btn-edit" onclick="openEditWalletModal('{{ wallet.id }}')" title="Editar">✏️</button>
+                    <button class="btn-delete" onclick="openDeleteModal('{{ wallet.id }}', '{{ wallet.name }}', 'carteira')" title="Eliminar">🗑️</button>
+                </div>
+            </div>
+        {% endfor %}
+    {% else %}
+        <p class="empty-text">Nenhuma carteira criada</p>
+    {% endif %}
 </div>
 
 <!-- Categorias -->
 <div class="row">
     <div class="col">
         <div class="card">
-            <h3>💰 Categorias de Recebimentos</h3>
-            <form action="{{ url_for('criar_categoria') }}" method="POST">
-                <input type="hidden" name="tipo" value="income">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Nome</label>
-                        <input type="text" name="nome" placeholder="Ex: Bónus" required>
+            <div class="card-header">
+                <h3>💰 Categorias de Recebimentos</h3>
+                <button class="btn btn-success btn-sm" onclick="openModal('categoria_income')">➕ Nova</button>
+            </div>
+            {% if categories.income %}
+                {% for cat in categories.income %}
+                    <div class="category-item">
+                        <span class="category-icon">{{ cat.icon or '📌' }}</span>
+                        <span class="category-name">{{ cat.name }}</span>
+                        <div class="action-buttons">
+                            <button class="btn-edit" onclick="openEditCategoryModal('{{ cat.id }}', 'income')" title="Editar">✏️</button>
+                            <button class="btn-delete" onclick="openDeleteModal('{{ cat.id }}', '{{ cat.name }}', 'categoria_income')" title="Eliminar">🗑️</button>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>Ícone</label>
-                        <input type="text" name="icon" placeholder="🎯" maxlength="2">
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-success btn-sm">➕ Adicionar</button>
-            </form>
-            <hr>
-            {% for cat in categories.income %}
-                <div class="category-item">
-                    <span class="category-icon">{{ cat.icon or '📌' }}</span>
-                    <span class="category-name">{{ cat.name }}</span>
-                    <a href="{{ url_for('deletar_categoria', tipo='income', category_id=cat.id) }}" class="btn-delete" onclick="return confirm('Eliminar esta categoria?')">✕</a>
-                </div>
-            {% endfor %}
+                {% endfor %}
+            {% else %}
+                <p class="empty-text">Nenhuma categoria criada</p>
+            {% endif %}
         </div>
     </div>
     <div class="col">
         <div class="card">
-            <h3>💸 Categorias de Gastos</h3>
-            <form action="{{ url_for('criar_categoria') }}" method="POST">
-                <input type="hidden" name="tipo" value="expense">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Nome</label>
-                        <input type="text" name="nome" placeholder="Ex: Combustível" required>
+            <div class="card-header">
+                <h3>💸 Categorias de Gastos</h3>
+                <button class="btn btn-danger btn-sm" onclick="openModal('categoria_expense')">➕ Nova</button>
+            </div>
+            {% if categories.expense %}
+                {% for cat in categories.expense %}
+                    <div class="category-item">
+                        <span class="category-icon">{{ cat.icon or '📌' }}</span>
+                        <span class="category-name">{{ cat.name }}</span>
+                        <div class="action-buttons">
+                            <button class="btn-edit" onclick="openEditCategoryModal('{{ cat.id }}', 'expense')" title="Editar">✏️</button>
+                            <button class="btn-delete" onclick="openDeleteModal('{{ cat.id }}', '{{ cat.name }}', 'categoria_expense')" title="Eliminar">🗑️</button>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>Ícone</label>
-                        <input type="text" name="icon" placeholder="⛽" maxlength="2">
-                    </div>
-                </div>
-                <button type="submit" class="btn btn-danger btn-sm">➕ Adicionar</button>
-            </form>
-            <hr>
-            {% for cat in categories.expense %}
-                <div class="category-item">
-                    <span class="category-icon">{{ cat.icon or '📌' }}</span>
-                    <span class="category-name">{{ cat.name }}</span>
-                    <a href="{{ url_for('deletar_categoria', tipo='expense', category_id=cat.id) }}" class="btn-delete" onclick="return confirm('Eliminar esta categoria?')">✕</a>
-                </div>
-            {% endfor %}
+                {% endfor %}
+            {% else %}
+                <p class="empty-text">Nenhuma categoria criada</p>
+            {% endif %}
         </div>
     </div>
 </div>
+
+<!-- ===== DADOS PARA OS MODAIS ===== -->
+<div style="display:none;">
+    <!-- Modal Carteira -->
+    <div id="carteiraFormData">
+        <div class="form-group">
+            <label>Nome da Carteira</label>
+            <input type="text" name="name" placeholder="Ex: BCI" required>
+        </div>
+        <div class="form-group">
+            <label>Tipo</label>
+            <select name="type" required>
+                <option value="physical_cash">💰 Dinheiro em Mão</option>
+                <option value="mobile_money">📱 Mobile Money</option>
+                <option value="bank_account">🏦 Conta Bancária</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Saldo Inicial ({{ simbolo }})</label>
+            <input type="number" step="0.01" name="balance" value="0">
+        </div>
+        <div class="form-group">
+            <label>Ícone</label>
+            <input type="text" name="icon" placeholder="💳" maxlength="2">
+        </div>
+    </div>
+
+    <!-- Modal Categoria Income -->
+    <div id="categoria_incomeFormData">
+        <input type="hidden" name="tipo" value="income">
+        <div class="form-group">
+            <label>Nome da Categoria</label>
+            <input type="text" name="nome" placeholder="Ex: Bónus" required>
+        </div>
+        <div class="form-group">
+            <label>Ícone</label>
+            <input type="text" name="icon" placeholder="🎯" maxlength="2">
+        </div>
+    </div>
+
+    <!-- Modal Categoria Expense -->
+    <div id="categoria_expenseFormData">
+        <input type="hidden" name="tipo" value="expense">
+        <div class="form-group">
+            <label>Nome da Categoria</label>
+            <input type="text" name="nome" placeholder="Ex: Combustível" required>
+        </div>
+        <div class="form-group">
+            <label>Ícone</label>
+            <input type="text" name="icon" placeholder="⛽" maxlength="2">
+        </div>
+    </div>
+</div>
+
+<!-- ===== DADOS PARA EDIÇÃO ===== -->
+<script>
+// Dados das carteiras para edição
+const walletsData = {
+    {% for wallet in wallets %}
+        "{{ wallet.id }}": {
+            name: "{{ wallet.name|safe }}",
+            type: "{{ wallet.type }}",
+            balance: "{{ wallet.balance }}",
+            icon: "{{ wallet.icon or '💳' }}"
+        },
+    {% endfor %}
+};
+
+// Dados das categorias para edição
+const categoriesData = {
+    income: {
+        {% for cat in categories.income %}
+            "{{ cat.id }}": {
+                nome: "{{ cat.name|safe }}",
+                icon: "{{ cat.icon or '📌' }}"
+            },
+        {% endfor %}
+    },
+    expense: {
+        {% for cat in categories.expense %}
+            "{{ cat.id }}": {
+                nome: "{{ cat.name|safe }}",
+                icon: "{{ cat.icon or '📌' }}"
+            },
+        {% endfor %}
+    }
+};
+
+// ===== FUNÇÕES DOS MODAIS =====
+
+function openModal(tipo) {
+    const modal = document.getElementById('modalOverlay');
+    const title = document.getElementById('modalTitle');
+    const form = document.getElementById('modalForm');
+    const fields = document.getElementById('modalFormFields');
+    const submitBtn = document.getElementById('modalSubmitBtn');
+    
+    // Limpar campos
+    document.getElementById('modalTransactionId').value = '';
+    
+    // Copiar campos do tipo
+    const source = document.getElementById(tipo + 'FormData');
+    if (source) {
+        fields.innerHTML = source.innerHTML;
+    }
+    
+    // Definir ação do formulário
+    const tipoMap = {
+        'carteira': { action: '{{ url_for("criar_carteira") }}', title: '🏦 Nova Carteira', btn: '💾 Criar Carteira' },
+        'categoria_income': { action: '{{ url_for("criar_categoria") }}', title: '💰 Nova Categoria (Recebimentos)', btn: '💾 Criar Categoria' },
+        'categoria_expense': { action: '{{ url_for("criar_categoria") }}', title: '💸 Nova Categoria (Gastos)', btn: '💾 Criar Categoria' }
+    };
+    
+    if (tipoMap[tipo]) {
+        form.action = tipoMap[tipo].action;
+        title.textContent = tipoMap[tipo].title;
+        submitBtn.textContent = tipoMap[tipo].btn;
+    }
+    
+    modal.classList.add('open');
+}
+
+function openEditWalletModal(id) {
+    const data = walletsData[id];
+    if (!data) {
+        showToast('Erro ao carregar dados para edição', 'error');
+        return;
+    }
+    
+    const modal = document.getElementById('modalOverlay');
+    const title = document.getElementById('modalTitle');
+    const form = document.getElementById('modalForm');
+    const fields = document.getElementById('modalFormFields');
+    const submitBtn = document.getElementById('modalSubmitBtn');
+    const transactionId = document.getElementById('modalTransactionId');
+    
+    // Copiar campos do tipo
+    const source = document.getElementById('carteiraFormData');
+    if (source) {
+        fields.innerHTML = source.innerHTML;
+    }
+    
+    // Preencher campos com os dados
+    const inputs = fields.querySelectorAll('input, select');
+    inputs.forEach(input => {
+        if (data[input.name] !== undefined) {
+            input.value = data[input.name];
+        }
+    });
+    
+    // Adicionar campo hidden para ID
+    const hiddenId = document.createElement('input');
+    hiddenId.type = 'hidden';
+    hiddenId.name = 'wallet_id';
+    hiddenId.value = id;
+    fields.appendChild(hiddenId);
+    
+    // Definir ação do formulário (editar)
+    form.action = '{{ url_for("editar_carteira") }}';
+    title.textContent = '✏️ Editar Carteira';
+    submitBtn.textContent = '💾 Atualizar Carteira';
+    
+    transactionId.value = id;
+    modal.classList.add('open');
+}
+
+function openEditCategoryModal(id, type) {
+    const data = categoriesData[type] && categoriesData[type][id];
+    if (!data) {
+        showToast('Erro ao carregar dados para edição', 'error');
+        return;
+    }
+    
+    const modal = document.getElementById('modalOverlay');
+    const title = document.getElementById('modalTitle');
+    const form = document.getElementById('modalForm');
+    const fields = document.getElementById('modalFormFields');
+    const submitBtn = document.getElementById('modalSubmitBtn');
+    const transactionId = document.getElementById('modalTransactionId');
+    
+    // Copiar campos do tipo
+    const sourceId = type === 'income' ? 'categoria_incomeFormData' : 'categoria_expenseFormData';
+    const source = document.getElementById(sourceId);
+    if (source) {
+        fields.innerHTML = source.innerHTML;
+    }
+    
+    // Preencher campos com os dados
+    const inputs = fields.querySelectorAll('input, select');
+    inputs.forEach(input => {
+        if (data[input.name] !== undefined) {
+            input.value = data[input.name];
+        }
+    });
+    
+    // Adicionar campo hidden para ID e tipo
+    const hiddenId = document.createElement('input');
+    hiddenId.type = 'hidden';
+    hiddenId.name = 'category_id';
+    hiddenId.value = id;
+    fields.appendChild(hiddenId);
+    
+    const hiddenType = document.createElement('input');
+    hiddenType.type = 'hidden';
+    hiddenType.name = 'category_type';
+    hiddenType.value = type;
+    fields.appendChild(hiddenType);
+    
+    // Definir ação do formulário (editar)
+    form.action = '{{ url_for("editar_categoria") }}';
+    title.textContent = type === 'income' ? '✏️ Editar Categoria (Recebimentos)' : '✏️ Editar Categoria (Gastos)';
+    submitBtn.textContent = '💾 Atualizar Categoria';
+    
+    transactionId.value = id;
+    modal.classList.add('open');
+}
+
+function openDeleteModal(id, name, tipo) {
+    const modal = document.getElementById('deleteModalOverlay');
+    const confirmBtn = document.getElementById('deleteConfirmBtn');
+    const itemName = document.getElementById('deleteItemName');
+    
+    itemName.textContent = name || 'Item';
+    
+    // Definir URL de eliminação baseado no tipo
+    const deleteUrls = {
+        'carteira': '{{ url_for("deletar_carteira", wallet_id="") }}',
+        'categoria_income': '{{ url_for("deletar_categoria", tipo="income", category_id="") }}',
+        'categoria_expense': '{{ url_for("deletar_categoria", tipo="expense", category_id="") }}'
+    };
+    
+    const baseUrl = deleteUrls[tipo] || '{{ url_for("deletar_carteira", wallet_id="") }}';
+    confirmBtn.href = baseUrl + id;
+    modal.classList.add('open');
+}
+
+// Fechar modais ao clicar fora
+document.addEventListener('click', function(e) {
+    const modal = document.getElementById('modalOverlay');
+    const deleteModal = document.getElementById('deleteModalOverlay');
+    
+    if (e.target === modal) {
+        closeModal();
+    }
+    if (e.target === deleteModal) {
+        closeDeleteModal();
+    }
+});
+</script>
 {% endblock %}

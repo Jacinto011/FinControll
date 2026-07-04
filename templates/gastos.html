@@ -8,7 +8,7 @@
         <h1>💸 Gastos</h1>
         <button class="btn btn-primary" onclick="openModal('gasto')">➕ Novo Gasto</button>
     </div>
-    <p class="page-subtitle">Gerencie seus gastos</p>
+    <p class="page-subtitle">Registe e acompanhe seus gastos</p>
 </div>
 
 <div class="card">
@@ -30,11 +30,19 @@
                                     {{ cat.icon }} {{ cat.name }}
                                 {% endif %}
                             {% endfor %}
+                            {% if t.taxa and t.taxa > 0 %}
+                                <span class="taxa-badge">💰 Taxa: {{ "%.2f"|format(t.taxa) }} {{ simbolo }}</span>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
                 <div class="transaction-actions">
-                    <span class="text-red">-{{ "%.2f"|format(t.amount) }} {{ simbolo }}</span>
+                    <div>
+                        <span class="text-red">-{{ "%.2f"|format(t.total_amount or t.amount) }} {{ simbolo }}</span>
+                        {% if t.taxa and t.taxa > 0 %}
+                            <div class="taxa-detail">({{ "%.2f"|format(t.amount) }} + {{ "%.2f"|format(t.taxa) }} taxa)</div>
+                        {% endif %}
+                    </div>
                     <div class="action-buttons">
                         <button class="btn-edit" onclick="openEditModal('gasto', '{{ t.id }}')" title="Editar">✏️</button>
                         <button class="btn-delete" onclick="openDeleteModal('{{ t.id }}', '{{ t.description }}')" title="Eliminar">🗑️</button>
@@ -47,41 +55,67 @@
     {% endif %}
 </div>
 
-<!-- Dados para o Modal (escondido) -->
+<!-- ===== DADOS PARA O MODAL ===== -->
 <div style="display:none;">
     <div id="gastoFormData">
+        <input type="hidden" id="edit_mode" value="0">
+        
         <div class="form-group">
             <label>Descrição</label>
-            <input type="text" name="description" placeholder="Ex: Supermercado" required>
+            <input type="text" id="gasto_description" name="description" placeholder="Ex: Supermercado" required>
         </div>
+        
         <div class="form-group">
             <label>Valor ({{ simbolo }})</label>
-            <input type="number" step="0.01" name="amount" placeholder="0.00" required>
+            <input type="number" step="0.01" id="gasto_amount" name="amount" placeholder="0.00" required>
         </div>
+        
         <div class="form-group">
             <label>Categoria</label>
-            <select name="category_id" required>
+            <select id="gasto_category_id" name="category_id" required>
                 {% for cat in categories %}
                     <option value="{{ cat.id }}">{{ cat.icon }} {{ cat.name }}</option>
                 {% endfor %}
             </select>
         </div>
+        
         <div class="form-group">
             <label>De onde saiu?</label>
-            <select name="wallet_id" required>
+            <select id="gasto_wallet_id" name="wallet_id" required>
                 {% for wallet in wallets %}
-                    <option value="{{ wallet.id }}">{{ wallet.icon or '💳' }} {{ wallet.name }} ({{ "%.2f"|format(wallet.balance) }} {{ simbolo }})</option>
+                    <option value="{{ wallet.id }}" data-type="{{ wallet.type }}">
+                        {{ wallet.icon or '💳' }} {{ wallet.name }} ({{ "%.2f"|format(wallet.balance) }} {{ simbolo }})
+                    </option>
                 {% endfor %}
             </select>
         </div>
+        
+        <!-- Campo Taxa - sempre visível, desabilitado para Dinheiro em Mão -->
+        <div class="form-group" id="taxaGroup">
+            <label>Taxa da Transação ({{ simbolo }})</label>
+            <input type="number" step="0.01" id="gasto_taxa" name="taxa" placeholder="0.00" value="0">
+            <small id="taxaHint" style="color: var(--text-secondary);">Taxa de levantamento, transferência, etc.</small>
+        </div>
+        
+        <!-- Valor Total - apenas exibição -->
+        <div class="form-group" style="background: var(--bg-primary); border-radius: 8px; padding: 12px;">
+            <label style="font-weight: bold;">💰 Valor Total ({{ simbolo }})</label>
+            <input type="text" id="gasto_total_display" readonly 
+                   style="background: transparent; font-weight: bold; color: var(--text-primary); font-size: 20px; border: none; padding: 4px 0; width: 100%;">
+            <small style="color: var(--text-secondary);">Valor + Taxa (calculado automaticamente)</small>
+        </div>
+        
         <div class="form-group">
             <label>Data</label>
-            <input type="date" name="date">
+            <input type="date" id="gasto_date" name="date">
         </div>
+        
         <div class="form-group">
             <label>Observação</label>
-            <input type="text" name="notes" placeholder="Notas adicionais">
+            <input type="text" id="gasto_notes" name="notes" placeholder="Notas adicionais">
         </div>
+        
+        <input type="hidden" id="gasto_total" name="total_amount" value="0">
     </div>
 </div>
 
@@ -92,6 +126,7 @@ const gastosData = {
         "{{ t.id }}": {
             description: "{{ t.description|safe }}",
             amount: "{{ t.amount }}",
+            taxa: "{{ t.taxa or 0 }}",
             category_id: "{{ t.category_id }}",
             wallet_id: "{{ t.wallet_id }}",
             date: "{{ t.date }}",
@@ -104,81 +139,185 @@ function openModal(tipo) {
     const modal = document.getElementById('modalOverlay');
     const title = document.getElementById('modalTitle');
     const form = document.getElementById('modalForm');
-    const fields = document.getElementById('modalFormFields');
     const submitBtn = document.getElementById('modalSubmitBtn');
+    const fields = document.getElementById('modalFormFields');
     
-    // Limpar campos
     document.getElementById('modalTransactionId').value = '';
     
-    // Copiar campos do tipo
+    // Copiar os campos
     const source = document.getElementById(tipo + 'FormData');
-    fields.innerHTML = source.innerHTML;
+    if (source) {
+        fields.innerHTML = source.innerHTML;
+    }
     
-    // Definir ação do formulário
     if (tipo === 'gasto') {
         form.action = "{{ url_for('gastos') }}";
         title.textContent = '💸 Novo Gasto';
         submitBtn.textContent = '💸 Registrar Gasto';
-    } else if (tipo === 'recebimento') {
-        form.action = "{{ url_for('recebimentos') }}";
-        title.textContent = '💰 Novo Recebimento';
-        submitBtn.textContent = '💰 Registrar Recebimento';
-    } else if (tipo === 'investimento') {
-        form.action = "{{ url_for('investimentos') }}";
-        title.textContent = '📈 Novo Investimento';
-        submitBtn.textContent = '📈 Registrar Investimento';
     }
+    
+    // Preencher data
+    const dateInput = fields.querySelector('input[type="date"]');
+    if (dateInput && !dateInput.value) {
+        dateInput.value = new Date().toISOString().split('T')[0];
+    }
+    
+    // Configurar a lógica da taxa
+    setupTaxaLogic();
     
     modal.classList.add('open');
 }
 
 function openEditModal(tipo, id) {
+    // Buscar os dados da transação
+    const data = gastosData[id];
+    if (!data) {
+        showToast('Erro ao carregar dados para edição', 'error');
+        return;
+    }
+    
     const modal = document.getElementById('modalOverlay');
     const title = document.getElementById('modalTitle');
     const form = document.getElementById('modalForm');
-    const fields = document.getElementById('modalFormFields');
     const submitBtn = document.getElementById('modalSubmitBtn');
+    const fields = document.getElementById('modalFormFields');
     const transactionId = document.getElementById('modalTransactionId');
     
-    // Buscar dados
-    let data = {};
-    let dataKey = tipo === 'gasto' ? gastosData : 
-                  tipo === 'recebimento' ? recebimentosData : 
-                  investimentosData;
-    
-    if (dataKey && dataKey[id]) {
-        data = dataKey[id];
+    // Copiar os campos
+    const source = document.getElementById('gastoFormData');
+    if (source) {
+        fields.innerHTML = source.innerHTML;
     }
     
-    // Copiar campos do tipo
-    const source = document.getElementById(tipo + 'FormData');
-    fields.innerHTML = source.innerHTML;
+    // Preencher os campos com os dados
+    const description = fields.querySelector('#gasto_description');
+    const amount = fields.querySelector('#gasto_amount');
+    const taxa = fields.querySelector('#gasto_taxa');
+    const category = fields.querySelector('#gasto_category_id');
+    const wallet = fields.querySelector('#gasto_wallet_id');
+    const date = fields.querySelector('#gasto_date');
+    const notes = fields.querySelector('#gasto_notes');
     
-    // Preencher campos
-    const inputs = fields.querySelectorAll('input, select');
-    inputs.forEach(input => {
-        if (data[input.name] !== undefined) {
-            input.value = data[input.name];
-        }
-    });
+    if (description) description.value = data.description || '';
+    if (amount) amount.value = data.amount || '';
+    if (taxa) taxa.value = data.taxa || 0;
+    if (category) category.value = data.category_id || '';
+    if (wallet) wallet.value = data.wallet_id || '';
+    if (date) date.value = data.date || new Date().toISOString().split('T')[0];
+    if (notes) notes.value = data.notes || '';
     
-    // Definir ação do formulário
-    if (tipo === 'gasto') {
-        form.action = "{{ url_for('gastos') }}";
-        title.textContent = '✏️ Editar Gasto';
-        submitBtn.textContent = '💾 Atualizar Gasto';
-    } else if (tipo === 'recebimento') {
-        form.action = "{{ url_for('recebimentos') }}";
-        title.textContent = '✏️ Editar Recebimento';
-        submitBtn.textContent = '💾 Atualizar Recebimento';
-    } else if (tipo === 'investimento') {
-        form.action = "{{ url_for('investimentos') }}";
-        title.textContent = '✏️ Editar Investimento';
-        submitBtn.textContent = '💾 Atualizar Investimento';
-    }
-    
+    // Definir ação e título
+    form.action = "{{ url_for('gastos') }}";
+    title.textContent = '✏️ Editar Gasto';
+    submitBtn.textContent = '💾 Atualizar Gasto';
     transactionId.value = id;
+    
+    // Configurar a lógica da taxa
+    setupTaxaLogic();
+    
     modal.classList.add('open');
+}
+
+function setupTaxaLogic() {
+    // Buscar os elementos do modal
+    const modalContent = document.getElementById('modalFormFields');
+    if (!modalContent) return;
+    
+    const walletSelect = modalContent.querySelector('#gasto_wallet_id');
+    const taxaInput = modalContent.querySelector('#gasto_taxa');
+    const amountInput = modalContent.querySelector('#gasto_amount');
+    const totalDisplay = modalContent.querySelector('#gasto_total_display');
+    const totalHidden = modalContent.querySelector('#gasto_total');
+    const taxaHint = modalContent.querySelector('#taxaHint');
+    const taxaGroup = modalContent.querySelector('#taxaGroup');
+    
+    // Função para verificar se é Dinheiro em Mão
+    function isCashWallet() {
+        if (!walletSelect) return true;
+        const selectedOption = walletSelect.options[walletSelect.selectedIndex];
+        const walletType = selectedOption?.getAttribute('data-type') || '';
+        return walletType === 'physical_cash';
+    }
+    
+    // Função para atualizar o total
+    function updateTotal() {
+        const amount = parseFloat(amountInput?.value) || 0;
+        const taxa = parseFloat(taxaInput?.value) || 0;
+        const total = amount + taxa;
+        
+        if (totalDisplay) {
+            totalDisplay.value = total.toFixed(2) + ' {{ simbolo }}';
+        }
+        if (totalHidden) {
+            totalHidden.value = total.toFixed(2);
+        }
+    }
+    
+    // Função para verificar o tipo de carteira
+    function checkWalletType() {
+        const isCash = isCashWallet();
+        
+        // Habilitar/desabilitar campo de taxa
+        if (taxaInput) {
+            taxaInput.disabled = isCash;
+            taxaInput.style.opacity = isCash ? '0.5' : '1';
+            taxaInput.style.cursor = isCash ? 'not-allowed' : 'text';
+            taxaInput.style.backgroundColor = isCash ? '#f0f0f0' : '';
+            
+            if (isCash) {
+                taxaInput.value = '0';
+                taxaInput.placeholder = 'Taxa indisponível';
+            } else {
+                taxaInput.placeholder = '0.00';
+            }
+        }
+        
+        // Atualizar hint
+        if (taxaHint) {
+            if (isCash) {
+                taxaHint.textContent = '💰 Taxa indisponível para Dinheiro em Mão';
+                taxaHint.style.color = '#EF4444';
+            } else {
+                taxaHint.textContent = 'Taxa de levantamento, transferência, etc.';
+                taxaHint.style.color = 'var(--text-secondary)';
+            }
+        }
+        
+        updateTotal();
+    }
+    
+    // Adicionar eventos
+    if (walletSelect) {
+        // Remover eventos antigos para evitar duplicação
+        const newWalletSelect = walletSelect.cloneNode(true);
+        walletSelect.parentNode.replaceChild(newWalletSelect, walletSelect);
+        
+        // Adicionar evento ao novo elemento
+        newWalletSelect.addEventListener('change', function() {
+            checkWalletType();
+        });
+        
+        // Atualizar referência
+        const updatedWalletSelect = modalContent.querySelector('#gasto_wallet_id');
+        if (updatedWalletSelect) {
+            updatedWalletSelect.addEventListener('change', checkWalletType);
+        }
+    }
+    
+    // Adicionar eventos para inputs
+    if (amountInput) {
+        amountInput.addEventListener('input', updateTotal);
+    }
+    
+    if (taxaInput) {
+        taxaInput.addEventListener('input', updateTotal);
+    }
+    
+    // Executar inicialmente
+    setTimeout(function() {
+        checkWalletType();
+        updateTotal();
+    }, 300);
 }
 
 function openDeleteModal(id, name) {
@@ -186,9 +325,44 @@ function openDeleteModal(id, name) {
     const confirmBtn = document.getElementById('deleteConfirmBtn');
     const itemName = document.getElementById('deleteItemName');
     
-    itemName.textContent = name;
+    itemName.textContent = name || 'Item';
     confirmBtn.href = "{{ url_for('deletar_transacao', transaction_id='') }}" + id;
     modal.classList.add('open');
+}
+
+function closeModal() {
+    document.getElementById('modalOverlay').classList.remove('open');
+}
+
+function closeDeleteModal() {
+    document.getElementById('deleteModalOverlay').classList.remove('open');
+}
+
+// Fechar modais ao clicar fora
+document.addEventListener('click', function(e) {
+    const modal = document.getElementById('modalOverlay');
+    const deleteModal = document.getElementById('deleteModalOverlay');
+    
+    if (e.target === modal) {
+        closeModal();
+    }
+    if (e.target === deleteModal) {
+        closeDeleteModal();
+    }
+});
+
+function showToast(message, type) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
 }
 </script>
 {% endblock %}

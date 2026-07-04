@@ -1009,3 +1009,108 @@ body {
         max-width: calc(100% - 20px);
     }
 }
+
+/* ===== CATEGORY ITEM ===== */
+.category-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.category-item:last-child {
+    border-bottom: none;
+}
+
+.category-icon {
+    font-size: 18px;
+    width: 30px;
+    text-align: center;
+}
+
+.category-name {
+    flex: 1;
+    font-weight: 500;
+}
+
+/* ===== WALLET TYPE ===== */
+.wallet-type {
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: var(--bg-primary);
+    padding: 2px 10px;
+    border-radius: 12px;
+}
+
+/* ===== ACTION BUTTONS ===== */
+.action-buttons {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.btn-edit {
+    background: none;
+    border: none;
+    color: var(--primary);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px 6px;
+    transition: color 0.2s;
+    text-decoration: none;
+}
+
+.btn-edit:hover {
+    color: var(--primary-dark);
+}
+
+.btn-delete {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 4px 6px;
+    transition: color 0.2s;
+    text-decoration: none;
+}
+
+.btn-delete:hover {
+    color: var(--danger);
+}
+
+/* ===== CARD HEADER ===== */
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.card-header h3 {
+    margin: 0;
+}
+/* ===== TAXA BADGE ===== */
+.taxa-badge {
+    display: inline-block;
+    background: #FEF3C7;
+    color: #92400E;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin-left: 6px;
+}
+
+.taxa-detail {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+[data-theme="dark"] .taxa-badge {
+    background: #92400E;
+    color: #FEF3C7;
+}

@@ -13,8 +13,10 @@ dist/
 build/
 
 # Ambiente virtual
+.env
 .venv/
 venv/
+
 
 # Dados locais
 data/
