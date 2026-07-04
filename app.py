@@ -1,32 +1,39 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
-from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime
 import os
+import sys
 import uuid
 import psycopg2
 import psycopg2.pool
 from psycopg2.extras import RealDictCursor
 from contextlib import contextmanager
+from datetime import datetime
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
+
+# Adicionar o diretório atual ao PATH
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Carregar variáveis de ambiente
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = 'fincontrol_secret_key_2026'
+app.secret_key = os.getenv('SECRET_KEY', 'fincontrol_secret_key_2026')
 
-# ============ CONFIGURAÇÃO NEON COM POOL ============
+# ============ CONFIGURAÇÃO NEON ============
 DATABASE_URL = os.getenv('DATABASE_URL')
 
 if not DATABASE_URL:
-    raise ValueError('⚠️ DATABASE_URL não encontrada! Define a variável de ambiente.')
+    # Fallback para desenvolvimento local
+    DATABASE_URL = 'postgresql://user:password@localhost:5432/fincontrol'
+    print('⚠️ DATABASE_URL não encontrada, usando fallback local!')
 
 # Criar pool de conexões
 try:
     db_pool = psycopg2.pool.SimpleConnectionPool(
         1,   # min connections
         10,  # max connections
-        dsn=DATABASE_URL
+        dsn=DATABASE_URL,
+        sslmode='require'
     )
     print('✅ Pool de conexões criado com sucesso!')
 except Exception as e:
@@ -37,7 +44,7 @@ except Exception as e:
 def get_db():
     """Obter conexão do pool"""
     if db_pool is None:
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         try:
             yield conn
         finally:
@@ -134,12 +141,6 @@ def create_wallet(username, name, type, balance=0, icon='💳'):
         conn.commit()
     return wallet_id
 
-def update_wallet_balance(wallet_id, new_balance):
-    with get_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute('UPDATE wallets SET balance = %s WHERE id = %s', (new_balance, wallet_id))
-        conn.commit()
-
 def delete_wallet(wallet_id, username):
     with get_db() as conn:
         cursor = conn.cursor()
@@ -191,7 +192,7 @@ def create_transaction(username, transaction_type, description, amount, category
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ''', (trans_id, username, transaction_type, description, amount, taxa, total_amount, category_id, wallet_id, date, notes, datetime.now().isoformat()))
         
-        # Atualizar saldo da carteira (usando total_amount)
+        # Atualizar saldo da carteira
         cursor.execute('SELECT balance FROM wallets WHERE id = %s', (wallet_id,))
         result = cursor.fetchone()
         if result:
@@ -218,7 +219,7 @@ def update_transaction(username, transaction_id, data):
         old_cols = [desc[0] for desc in cursor.description]
         old = dict(zip(old_cols, old_trans))
         
-        # Reverter saldo antigo (usando total_amount)
+        # Reverter saldo antigo
         cursor.execute('SELECT balance FROM wallets WHERE id = %s', (old['wallet_id'],))
         result = cursor.fetchone()
         if result:
@@ -273,7 +274,7 @@ def delete_transaction(username, transaction_id):
         trans_cols = [desc[0] for desc in cursor.description]
         trans_data = dict(zip(trans_cols, trans))
         
-        # Reverter saldo (usando total_amount)
+        # Reverter saldo
         cursor.execute('SELECT balance FROM wallets WHERE id = %s', (trans_data['wallet_id'],))
         result = cursor.fetchone()
         if result:
@@ -300,7 +301,6 @@ def get_user_transactions(username, limit=None):
         cursor.execute(query, (username,))
         transactions = cursor.fetchall()
         
-        # Converter datetime e date para strings
         result = []
         for t in transactions:
             t_dict = dict(t)
@@ -509,7 +509,6 @@ def dashboard():
     wallets = get_user_wallets(username)
     transactions = get_user_transactions(username, 5)
     
-    # Calcular totais de forma eficiente
     all_transactions = get_user_transactions(username)
     total_received = sum(t.get('total_amount', t['amount']) for t in all_transactions if t['type'] == 'income')
     total_expenses = sum(t.get('total_amount', t['amount']) for t in all_transactions if t['type'] == 'expense')
@@ -680,7 +679,6 @@ def investimentos():
                 'notes': notes
             })
         else:
-            # Buscar categoria 'Investimento' ou criar
             categories = get_user_categories(username, 'expense')
             cat_id = next((c['id'] for c in categories if c['name'] == 'Investimento'), None)
             if not cat_id:
@@ -995,4 +993,6 @@ def alertas():
 
 # ============ INICIAR APP ============
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    port = int(os.getenv('PORT', 5000))
+    debug = os.getenv('DEBUG', 'False').lower() == 'true'
+    app.run(host='0.0.0.0', port=port, debug=debug)
