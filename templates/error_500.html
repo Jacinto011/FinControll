@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Erro 500 - FinControl{% endblock %}
+
+{% block content %}
+<div class="error-container">
+    <div class="error-content">
+        <div class="error-icon">😱</div>
+        <h1 class="error-title">Erro 500</h1>
+        <h2 class="error-subtitle">Algo correu mal no servidor</h2>
+        <p class="error-message">
+            Ocorreu um erro inesperado ao processar a sua solicitação.
+            A nossa equipa já foi notificada e está a trabalhar para resolver o problema.
+        </p>
+        <div class="error-details" id="errorDetails" style="display:none;">
+            <h3>Detalhes do Erro</h3>
+            <pre id="errorTraceback" style="background: var(--bg-primary); padding: 16px; border-radius: 8px; overflow-x: auto; font-size: 12px; color: var(--text-secondary);"></pre>
+        </div>
+        <div class="error-actions">
+            <a href="{{ url_for('dashboard') }}" class="btn btn-primary">🏠 Voltar ao Dashboard</a>
+            <button class="btn btn-secondary" onclick="window.location.reload()">🔄 Tentar Novamente</button>
+            <button class="btn btn-secondary" onclick="toggleDetails()">🔍 Ver Detalhes</button>
+        </div>
+        <div class="error-tips">
+            <h3>💡 Dicas</h3>
+            <ul>
+                <li>Verifique se todos os campos estão preenchidos corretamente</li>
+                <li>Tente recarregar a página</li>
+                <li>Se o problema persistir, contacte o suporte</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<style>
+.error-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: calc(100vh - var(--navbar-height) - 60px);
+    padding: 20px;
+    margin: 0 auto;
+    max-width: 800px;
+}
+
+.error-content {
+    text-align: center;
+    width: 100%;
+}
+
+.error-icon {
+    font-size: 80px;
+    margin-bottom: 20px;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+.error-title {
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--danger);
+    margin-bottom: 8px;
+}
+
+.error-subtitle {
+    font-size: 24px;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+}
+
+.error-message {
+    font-size: 16px;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+    line-height: 1.6;
+}
+
+.error-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+}
+
+.error-actions .btn {
+    min-width: 180px;
+    padding: 12px 24px;
+}
+
+.error-tips {
+    background: var(--bg-primary);
+    border-radius: 12px;
+    padding: 20px 24px;
+    text-align: left;
+    margin-top: 16px;
+}
+
+.error-tips h3 {
+    font-size: 16px;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+}
+
+.error-tips ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.error-tips ul li {
+    padding: 8px 0;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 14px;
+}
+
+.error-tips ul li:last-child {
+    border-bottom: none;
+}
+
+.error-tips ul li::before {
+    content: "💡 ";
+}
+
+.error-details {
+    text-align: left;
+    margin: 16px 0;
+}
+
+.error-details h3 {
+    font-size: 14px;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+@media (max-width: 480px) {
+    .error-title {
+        font-size: 32px;
+    }
+    
+    .error-subtitle {
+        font-size: 18px;
+    }
+    
+    .error-actions .btn {
+        min-width: 140px;
+        font-size: 13px;
+        padding: 10px 16px;
+    }
+    
+    .error-icon {
+        font-size: 60px;
+    }
+}
+</style>
+
+<script>
+function toggleDetails() {
+    const details = document.getElementById('errorDetails');
+    if (details.style.display === 'none') {
+        details.style.display = 'block';
+        try {
+            const traceback = '{{ traceback|safe if traceback else "Detalhes do erro não disponíveis em produção." }}';
+            document.getElementById('errorTraceback').textContent = traceback;
+        } catch(e) {
+            document.getElementById('errorTraceback').textContent = 'Detalhes do erro não disponíveis.';
+        }
+    } else {
+        details.style.display = 'none';
+    }
+}
+
+if (window.history && window.history.replaceState) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+}
+</script>
+{% endblock %}

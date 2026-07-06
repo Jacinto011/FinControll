@@ -30,11 +30,19 @@
                                     {{ cat.icon }} {{ cat.name }}
                                 {% endif %}
                             {% endfor %}
+                            {% if t.taxa and t.taxa > 0 %}
+                                <span class="taxa-badge">💰 Taxa: {{ "%.2f"|format(t.taxa) }} {{ simbolo }}</span>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
                 <div class="transaction-actions">
-                    <span class="text-green">+{{ "%.2f"|format(t.amount) }} {{ simbolo }}</span>
+                    <div>
+                        <span class="text-green">+{{ "%.2f"|format(t.total_amount or t.amount) }} {{ simbolo }}</span>
+                        {% if t.taxa and t.taxa > 0 %}
+                            <div class="taxa-detail">({{ "%.2f"|format(t.amount) }} + {{ "%.2f"|format(t.taxa) }} taxa)</div>
+                        {% endif %}
+                    </div>
                     <div class="action-buttons">
                         <button class="btn-edit" onclick="openEditModal('recebimento', '{{ t.id }}')" title="Editar">✏️</button>
                         <button class="btn-delete" onclick="openDeleteModal('{{ t.id }}', '{{ t.description }}')" title="Eliminar">🗑️</button>
@@ -47,7 +55,7 @@
     {% endif %}
 </div>
 
-<!-- Dados para o Modal (escondido) -->
+<!-- Dados para o Modal -->
 <div style="display:none;">
     <div id="recebimentoFormData">
         <div class="form-group">
@@ -70,9 +78,16 @@
             <label>Para onde foi?</label>
             <select name="wallet_id" required>
                 {% for wallet in wallets %}
-                    <option value="{{ wallet.id }}">{{ wallet.icon or '💳' }} {{ wallet.name }} ({{ "%.2f"|format(wallet.balance) }} {{ simbolo }})</option>
+                    <option value="{{ wallet.id }}" data-type="{{ wallet.type }}">
+                        {{ wallet.icon or '💳' }} {{ wallet.name }} ({{ "%.2f"|format(wallet.balance) }} {{ simbolo }})
+                    </option>
                 {% endfor %}
             </select>
+        </div>
+        <div class="form-group" id="taxaGroupRecebimento">
+            <label>Taxa da Transação ({{ simbolo }})</label>
+            <input type="number" step="0.01" name="taxa" placeholder="0.00" value="0">
+            <small style="color: var(--text-secondary);">Taxa de recebimento, transferência, etc.</small>
         </div>
         <div class="form-group">
             <label>Data</label>
@@ -86,12 +101,12 @@
 </div>
 
 <script>
-// Dados das transações para edição
 const recebimentosData = {
     {% for t in transactions %}
         "{{ t.id }}": {
             description: "{{ t.description|safe }}",
             amount: "{{ t.amount }}",
+            taxa: "{{ t.taxa or 0 }}",
             category_id: "{{ t.category_id }}",
             wallet_id: "{{ t.wallet_id }}",
             date: "{{ t.date }}",
@@ -99,5 +114,124 @@ const recebimentosData = {
         },
     {% endfor %}
 };
+
+function openModal(tipo) {
+    const modal = document.getElementById('modalOverlay');
+    const title = document.getElementById('modalTitle');
+    const form = document.getElementById('modalForm');
+    const submitBtn = document.getElementById('modalSubmitBtn');
+    const fields = document.getElementById('modalFormFields');
+    
+    document.getElementById('modalTransactionId').value = '';
+    
+    const source = document.getElementById(tipo + 'FormData');
+    if (source) {
+        fields.innerHTML = source.innerHTML;
+    }
+    
+    if (tipo === 'recebimento') {
+        form.action = "{{ url_for('recebimentos') }}";
+        title.textContent = '💰 Novo Recebimento';
+        submitBtn.textContent = '💰 Registrar Recebimento';
+    }
+    
+    const dateInput = fields.querySelector('input[type="date"]');
+    if (dateInput && !dateInput.value) {
+        dateInput.value = new Date().toISOString().split('T')[0];
+    }
+    
+    setupTaxaLogicRecebimento();
+    modal.classList.add('open');
+}
+
+function openEditModal(tipo, id) {
+    const data = recebimentosData[id];
+    if (!data) {
+        showToast('Erro ao carregar dados para edição', 'error');
+        return;
+    }
+    
+    const modal = document.getElementById('modalOverlay');
+    const title = document.getElementById('modalTitle');
+    const form = document.getElementById('modalForm');
+    const submitBtn = document.getElementById('modalSubmitBtn');
+    const fields = document.getElementById('modalFormFields');
+    const transactionId = document.getElementById('modalTransactionId');
+    
+    const source = document.getElementById('recebimentoFormData');
+    if (source) {
+        fields.innerHTML = source.innerHTML;
+    }
+    
+    const inputs = fields.querySelectorAll('input, select');
+    inputs.forEach(input => {
+        if (data[input.name] !== undefined) {
+            input.value = data[input.name];
+        }
+    });
+    
+    form.action = "{{ url_for('recebimentos') }}";
+    title.textContent = '✏️ Editar Recebimento';
+    submitBtn.textContent = '💾 Atualizar Recebimento';
+    transactionId.value = id;
+    
+    setupTaxaLogicRecebimento();
+    modal.classList.add('open');
+}
+
+function setupTaxaLogicRecebimento() {
+    const modalContent = document.getElementById('modalFormFields');
+    if (!modalContent) return;
+    
+    const walletSelect = modalContent.querySelector('select[name="wallet_id"]');
+    const taxaInput = modalContent.querySelector('input[name="taxa"]');
+    const taxaGroup = modalContent.querySelector('#taxaGroupRecebimento');
+    
+    function isCashWallet() {
+        if (!walletSelect) return true;
+        const selectedOption = walletSelect.options[walletSelect.selectedIndex];
+        const walletType = selectedOption?.getAttribute('data-type') || '';
+        return walletType === 'physical_cash';
+    }
+    
+    function checkWalletType() {
+        const isCash = isCashWallet();
+        
+        if (taxaInput) {
+            taxaInput.disabled = isCash;
+            taxaInput.style.opacity = isCash ? '0.5' : '1';
+            taxaInput.style.cursor = isCash ? 'not-allowed' : 'text';
+            taxaInput.style.backgroundColor = isCash ? '#f0f0f0' : '';
+            
+            if (isCash) {
+                taxaInput.value = '0';
+                taxaInput.placeholder = 'Taxa indisponível';
+            } else {
+                taxaInput.placeholder = '0.00';
+            }
+        }
+        
+        if (taxaGroup) {
+            const hint = taxaGroup.querySelector('small');
+            if (hint) {
+                if (isCash) {
+                    hint.textContent = '💰 Taxa indisponível para Dinheiro em Mão';
+                    hint.style.color = '#EF4444';
+                } else {
+                    hint.textContent = 'Taxa de recebimento, transferência, etc.';
+                    hint.style.color = 'var(--text-secondary)';
+                }
+            }
+        }
+    }
+    
+    if (walletSelect) {
+        walletSelect.addEventListener('change', checkWalletType);
+    }
+    
+    setTimeout(function() {
+        checkWalletType();
+    }, 200);
+}
 </script>
 {% endblock %}

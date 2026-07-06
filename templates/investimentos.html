@@ -19,6 +19,22 @@
     </div>
 </div>
 
+<!-- Resumo de Ganhos/Perdas -->
+<div class="row">
+    <div class="col">
+        <div class="card card-success" style="text-align:center;">
+            <h3>✅ Ganhos</h3>
+            <p class="big-number">+{{ "%.2f"|format(total_ganhos or 0) }} {{ simbolo }}</p>
+        </div>
+    </div>
+    <div class="col">
+        <div class="card card-danger" style="text-align:center;">
+            <h3>❌ Perdas</h3>
+            <p class="big-number">-{{ "%.2f"|format(total_perdas or 0) }} {{ simbolo }}</p>
+        </div>
+    </div>
+</div>
+
 <div class="card">
     <h3>📋 Lista de Investimentos</h3>
     {% if investments %}
@@ -29,10 +45,29 @@
                     <div>
                         <div class="transaction-description">{{ inv.description }}</div>
                         <div class="transaction-date">{{ inv.date }}</div>
+                        <div class="transaction-category">
+                            {% if inv.retorno is not none %}
+                                <span class="{% if inv.retorno >= 0 %}text-green{% else %}text-red{% endif %}">
+                                    {% if inv.retorno >= 0 %}✅ Ganho{% else %}❌ Perda{% endif %}: 
+                                    {{ "%.2f"|format(inv.retorno) }} {{ simbolo }}
+                                </span>
+                                <span style="font-size:12px;color:var(--text-secondary);">
+                                    (Investido: {{ "%.2f"|format(inv.amount) }} {{ simbolo }} | 
+                                    Recebido: {{ "%.2f"|format(inv.total_recebido or 0) }} {{ simbolo }})
+                                </span>
+                            {% else %}
+                                <span style="font-size:12px;color:var(--text-secondary);">
+                                    Investido: {{ "%.2f"|format(inv.amount) }} {{ simbolo }}
+                                    {% if inv.total_recebido and inv.total_recebido > 0 %}
+                                        | Recebido: {{ "%.2f"|format(inv.total_recebido) }} {{ simbolo }}
+                                    {% endif %}
+                                </span>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
                 <div class="transaction-actions">
-                    <span class="text-purple">📈 {{ "%.2f"|format(inv.amount) }} {{ simbolo }}</span>
+                    <span class="text-purple">📈 {{ "%.2f"|format(inv.total_amount or inv.amount) }} {{ simbolo }}</span>
                     <div class="action-buttons">
                         <button class="btn-edit" onclick="openEditModal('investimento', '{{ inv.id }}')" title="Editar">✏️</button>
                         <button class="btn-delete" onclick="openDeleteModal('{{ inv.id }}', '{{ inv.description }}')" title="Eliminar">🗑️</button>
@@ -45,48 +80,122 @@
     {% endif %}
 </div>
 
-<!-- Dados para o Modal (escondido) -->
+<!-- ===== MODAL PARA INVESTIMENTOS ===== -->
 <div style="display:none;">
     <div id="investimentoFormData">
         <div class="form-group">
             <label>Nome do Investimento</label>
-            <input type="text" name="description" placeholder="Ex: Fundo de Emergência" required>
+            <input type="text" id="inv_description" name="description" placeholder="Ex: Fundo de Emergência" required>
         </div>
         <div class="form-group">
-            <label>Valor ({{ simbolo }})</label>
-            <input type="number" step="0.01" name="amount" placeholder="0.00" required>
+            <label>Valor Investido ({{ simbolo }})</label>
+            <input type="number" step="0.01" id="inv_amount" name="amount" placeholder="0.00" required>
+        </div>
+        <div class="form-group">
+            <label>Valor Recebido (Retorno) ({{ simbolo }})</label>
+            <input type="number" step="0.01" id="inv_total_recebido" name="total_recebido" placeholder="0.00" value="0">
+            <small style="color: var(--text-secondary);">Valor total recebido do investimento (deixe 0 se ainda não recebeu)</small>
         </div>
         <div class="form-group">
             <label>De onde saiu?</label>
-            <select name="wallet_id" required>
+            <select id="inv_wallet_id" name="wallet_id" required>
                 {% for wallet in wallets %}
                     <option value="{{ wallet.id }}">{{ wallet.icon or '💳' }} {{ wallet.name }} ({{ "%.2f"|format(wallet.balance) }} {{ simbolo }})</option>
                 {% endfor %}
             </select>
         </div>
         <div class="form-group">
-            <label>Data</label>
-            <input type="date" name="date">
+            <label>Data do Investimento</label>
+            <input type="date" id="inv_date" name="date">
         </div>
         <div class="form-group">
             <label>Observação</label>
-            <input type="text" name="notes" placeholder="Notas adicionais">
+            <input type="text" id="inv_notes" name="notes" placeholder="Notas adicionais">
         </div>
     </div>
 </div>
 
 <script>
-// Dados das transações para edição
 const investimentosData = {
     {% for inv in investments %}
         "{{ inv.id }}": {
             description: "{{ inv.description|safe }}",
             amount: "{{ inv.amount }}",
+            total_recebido: "{{ inv.total_recebido or 0 }}",
             wallet_id: "{{ inv.wallet_id }}",
             date: "{{ inv.date }}",
             notes: "{{ inv.notes|safe }}"
         },
     {% endfor %}
 };
+
+function openModal(tipo) {
+    const modal = document.getElementById('modalOverlay');
+    const title = document.getElementById('modalTitle');
+    const form = document.getElementById('modalForm');
+    const submitBtn = document.getElementById('modalSubmitBtn');
+    const fields = document.getElementById('modalFormFields');
+    
+    document.getElementById('modalTransactionId').value = '';
+    
+    const source = document.getElementById(tipo + 'FormData');
+    if (source) {
+        fields.innerHTML = source.innerHTML;
+    }
+    
+    if (tipo === 'investimento') {
+        form.action = "{{ url_for('investimentos') }}";
+        title.textContent = '📈 Novo Investimento';
+        submitBtn.textContent = '📈 Registrar Investimento';
+    }
+    
+    const dateInput = fields.querySelector('input[type="date"]');
+    if (dateInput && !dateInput.value) {
+        dateInput.value = new Date().toISOString().split('T')[0];
+    }
+    
+    modal.classList.add('open');
+}
+
+function openEditModal(tipo, id) {
+    const data = investimentosData[id];
+    if (!data) {
+        showToast('Erro ao carregar dados para edição', 'error');
+        return;
+    }
+    
+    const modal = document.getElementById('modalOverlay');
+    const title = document.getElementById('modalTitle');
+    const form = document.getElementById('modalForm');
+    const submitBtn = document.getElementById('modalSubmitBtn');
+    const fields = document.getElementById('modalFormFields');
+    const transactionId = document.getElementById('modalTransactionId');
+    
+    const source = document.getElementById('investimentoFormData');
+    if (source) {
+        fields.innerHTML = source.innerHTML;
+    }
+    
+    const description = fields.querySelector('#inv_description');
+    const amount = fields.querySelector('#inv_amount');
+    const total_recebido = fields.querySelector('#inv_total_recebido');
+    const wallet = fields.querySelector('#inv_wallet_id');
+    const date = fields.querySelector('#inv_date');
+    const notes = fields.querySelector('#inv_notes');
+    
+    if (description) description.value = data.description || '';
+    if (amount) amount.value = data.amount || '';
+    if (total_recebido) total_recebido.value = data.total_recebido || 0;
+    if (wallet) wallet.value = data.wallet_id || '';
+    if (date) date.value = data.date || new Date().toISOString().split('T')[0];
+    if (notes) notes.value = data.notes || '';
+    
+    form.action = "{{ url_for('investimentos') }}";
+    title.textContent = '✏️ Editar Investimento';
+    submitBtn.textContent = '💾 Atualizar Investimento';
+    transactionId.value = id;
+    
+    modal.classList.add('open');
+}
 </script>
 {% endblock %}

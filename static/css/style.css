@@ -1114,3 +1114,231 @@ body {
     background: #92400E;
     color: #FEF3C7;
 }
+
+/* ===== TAXA BADGE ===== */
+.taxa-badge {
+    display: inline-block;
+    background: #FEF3C7;
+    color: #92400E;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin-left: 6px;
+}
+
+.taxa-detail {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+
+[data-theme="dark"] .taxa-badge {
+    background: #92400E;
+    color: #FEF3C7;
+}
+
+/* ===== SUMMARY CARD ===== */
+.summary-card {
+    text-align: center;
+    padding: 24px;
+    margin-bottom: 16px;
+}
+
+.summary-card .big-number {
+    font-size: 32px;
+    font-weight: 700;
+}
+
+.summary-sub {
+    font-size: 14px;
+    opacity: 0.8;
+}
+
+/* ===== TIP ITEM ===== */
+.tip-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.tip-item:last-child {
+    border-bottom: none;
+}
+
+.tip-icon {
+    font-size: 24px;
+}
+
+.tip-item h4 {
+    font-size: 14px;
+    margin-bottom: 2px;
+}
+
+.tip-item p {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.tip-item small {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* ===== WALLET TYPE ===== */
+.wallet-type {
+    font-size: 11px;
+    color: var(--text-secondary);
+    background: var(--bg-primary);
+    padding: 2px 10px;
+    border-radius: 12px;
+}
+
+/* ===== CARD HEADER ===== */
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.card-header h3 {
+    margin: 0;
+}
+
+.card-badge {
+    background: var(--bg-primary);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+/* ===== ERROR PAGES ===== */
+.error-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: calc(100vh - var(--navbar-height) - 60px);
+    padding: 20px;
+    margin: 0 auto;
+    max-width: 800px;
+}
+
+.error-content {
+    text-align: center;
+    width: 100%;
+}
+
+.error-icon {
+    font-size: 80px;
+    margin-bottom: 20px;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+}
+
+.error-title {
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--danger);
+    margin-bottom: 8px;
+}
+
+.error-subtitle {
+    font-size: 24px;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+}
+
+.error-message {
+    font-size: 16px;
+    color: var(--text-secondary);
+    margin-bottom: 24px;
+    line-height: 1.6;
+}
+
+.error-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+}
+
+.error-actions .btn {
+    min-width: 180px;
+    padding: 12px 24px;
+}
+
+.error-tips {
+    background: var(--bg-primary);
+    border-radius: 12px;
+    padding: 20px 24px;
+    text-align: left;
+    margin-top: 16px;
+}
+
+.error-tips h3 {
+    font-size: 16px;
+    color: var(--text-primary);
+    margin-bottom: 12px;
+}
+
+.error-tips ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.error-tips ul li {
+    padding: 8px 0;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 14px;
+}
+
+.error-tips ul li:last-child {
+    border-bottom: none;
+}
+
+.error-tips ul li::before {
+    content: "💡 ";
+}
+
+.error-details {
+    text-align: left;
+    margin: 16px 0;
+}
+
+.error-details h3 {
+    font-size: 14px;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+/* Responsive Error */
+@media (max-width: 480px) {
+    .error-title {
+        font-size: 32px;
+    }
+    
+    .error-subtitle {
+        font-size: 18px;
+    }
+    
+    .error-actions .btn {
+        min-width: 140px;
+        font-size: 13px;
+        padding: 10px 16px;
+    }
+    
+    .error-icon {
+        font-size: 60px;
+    }
+}

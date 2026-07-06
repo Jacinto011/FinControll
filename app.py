@@ -1,6 +1,7 @@
 import os
 import sys
 import uuid
+import traceback
 import psycopg2
 import psycopg2.pool
 from psycopg2.extras import RealDictCursor
@@ -23,7 +24,6 @@ app.secret_key = os.getenv('SECRET_KEY', 'fincontrol_secret_key_2026')
 DATABASE_URL = os.getenv('DATABASE_URL')
 
 if not DATABASE_URL:
-    # Fallback para desenvolvimento local
     DATABASE_URL = 'postgresql://user:password@localhost:5432/fincontrol'
     print('⚠️ DATABASE_URL não encontrada, usando fallback local!')
 
@@ -55,6 +55,50 @@ def get_db():
             yield conn
         finally:
             db_pool.putconn(conn)
+
+# ============ MANIPULADORES DE ERROS ============
+
+@app.errorhandler(404)
+def page_not_found(e):
+    if 'username' in session:
+        return render_template('error_404.html', username=session['username']), 404
+    return render_template('error_404.html'), 404
+
+@app.errorhandler(500)
+def internal_server_error(e):
+    error_traceback = traceback.format_exc()
+    print('=' * 80)
+    print('❌ ERRO 500 - INTERNAL SERVER ERROR')
+    print('=' * 80)
+    print(error_traceback)
+    print('=' * 80)
+    
+    show_details = os.getenv('DEBUG', 'False').lower() == 'true'
+    
+    if 'username' in session:
+        return render_template('error_500.html', 
+                             username=session['username'],
+                             traceback=error_traceback if show_details else None), 500
+    return render_template('error_500.html', 
+                         traceback=error_traceback if show_details else None), 500
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    error_traceback = traceback.format_exc()
+    print('=' * 80)
+    print(f'❌ EXCEÇÃO NÃO TRATADA: {type(e).__name__}')
+    print('=' * 80)
+    print(error_traceback)
+    print('=' * 80)
+    
+    show_details = os.getenv('DEBUG', 'False').lower() == 'true'
+    
+    if 'username' in session:
+        return render_template('error_500.html', 
+                             username=session['username'],
+                             traceback=error_traceback if show_details else None), 500
+    return render_template('error_500.html', 
+                         traceback=error_traceback if show_details else None), 500
 
 # ============ MOEDAS SUPORTADAS ============
 MOEDAS = {
@@ -130,6 +174,13 @@ def get_user_wallets(username):
         wallets = cursor.fetchall()
         return [dict(w) for w in wallets]
 
+def get_wallet_by_id(wallet_id, username):
+    with get_db() as conn:
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        cursor.execute('SELECT * FROM wallets WHERE id = %s AND username = %s', (wallet_id, username))
+        wallet = cursor.fetchone()
+        return dict(wallet) if wallet else None
+
 def create_wallet(username, name, type, balance=0, icon='💳'):
     wallet_id = str(uuid.uuid4())
     with get_db() as conn:
@@ -176,62 +227,120 @@ def delete_category(category_id, username):
         cursor.execute('DELETE FROM categories WHERE id = %s AND username = %s', (category_id, username))
         conn.commit()
 
-# --- Transações ---
+# ============================================================================
+# TRANSAÇÕES - OTIMIZADO
+# ============================================================================
 
-def create_transaction(username, transaction_type, description, amount, category_id, wallet_id, date, notes='', taxa=0, total_amount=None):
+def create_transaction(username, transaction_type, description, amount, category_id, wallet_id, date, notes='', taxa=0, total_amount=None, total_recebido=None):
+    """Criar transação e atualizar saldo da carteira"""
     trans_id = str(uuid.uuid4())
-    if total_amount is None:
+    
+    # Só calcular se não veio um total válido
+    if total_amount is None or total_amount == 0:
         total_amount = amount + taxa
+        print(f'🔧 total_amount calculado: {amount} + {taxa} = {total_amount}')
+    else:
+        print(f'✅ total_amount recebido: {total_amount}')
+    
+    if total_recebido is None:
+        total_recebido = 0
+    
+    print('=' * 60)
+    print(f'🔍 CREATE_TRANSACTION - INÍCIO')
+    print(f'📌 Tipo: {transaction_type}')
+    print(f'📌 Descrição: {description}')
+    print(f'📌 Valor: {amount}')
+    print(f'📌 Taxa: {taxa}')
+    print(f'📌 TOTAL: {total_amount}')
+    print(f'📌 Carteira ID: {wallet_id}')
+    print('=' * 60)
     
     with get_db() as conn:
         cursor = conn.cursor()
         
-        cursor.execute('''
-            INSERT INTO transactions 
-            (id, username, type, description, amount, taxa, total_amount, category_id, wallet_id, date, notes, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        ''', (trans_id, username, transaction_type, description, amount, taxa, total_amount, category_id, wallet_id, date, notes, datetime.now().isoformat()))
-        
-        # Atualizar saldo da carteira
-        cursor.execute('SELECT balance FROM wallets WHERE id = %s', (wallet_id,))
+        cursor.execute('SELECT balance FROM wallets WHERE id = %s AND username = %s', (wallet_id, username))
         result = cursor.fetchone()
-        if result:
-            current_balance = result[0]
-            if transaction_type == 'income':
-                new_balance = current_balance + total_amount
-            else:
-                new_balance = current_balance - total_amount
-            cursor.execute('UPDATE wallets SET balance = %s WHERE id = %s', (new_balance, wallet_id))
+        if not result:
+            print(f'❌ ERRO: Carteira {wallet_id} não encontrada')
+            return None
+        
+        current_balance = result[0]
+        print(f'💰 Saldo atual: {current_balance}')
+        
+        if transaction_type == 'income':
+            new_balance = current_balance + total_amount
+            print(f'📈 Recebimento: +{total_amount}')
+        elif transaction_type in ['expense', 'investment']:
+            new_balance = current_balance - total_amount
+            print(f'📉 {transaction_type}: -{total_amount}')
+        else:
+            new_balance = current_balance
+        
+        print(f'🔄 Novo saldo: {new_balance}')
+        
+        try:
+            cursor.execute('''
+                INSERT INTO transactions 
+                (id, username, type, description, amount, taxa, total_amount, total_recebido, category_id, wallet_id, date, notes, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ''', (trans_id, username, transaction_type, description, amount, taxa, total_amount, total_recebido, category_id, wallet_id, date, notes, datetime.now().isoformat()))
+            print(f'✅ Transação inserida! ID: {trans_id}')
+        except Exception as e:
+            print(f'❌ Erro ao inserir: {e}')
+            return None
+        
+        try:
+            cursor.execute('UPDATE wallets SET balance = %s WHERE id = %s AND username = %s', (new_balance, wallet_id, username))
+            print(f'✅ Saldo atualizado: {current_balance} -> {new_balance}')
+        except Exception as e:
+            print(f'❌ Erro ao atualizar saldo: {e}')
+            conn.rollback()
+            return None
         
         conn.commit()
+        print(f'✅ Transação criada com sucesso!')
+        print('=' * 60)
+        
     return trans_id
 
 def update_transaction(username, transaction_id, data):
+    """Atualizar transação e ajustar saldo da carteira"""
+    print('=' * 60)
+    print(f'🔍 UPDATE_TRANSACTION - ID: {transaction_id}')
+    print('=' * 60)
+    
     with get_db() as conn:
         cursor = conn.cursor()
         
-        # Buscar transação antiga
         cursor.execute('SELECT * FROM transactions WHERE id = %s AND username = %s', (transaction_id, username))
         old_trans = cursor.fetchone()
         if not old_trans:
+            print(f'❌ Erro: Transação não encontrada')
             return False
         
         old_cols = [desc[0] for desc in cursor.description]
         old = dict(zip(old_cols, old_trans))
         
-        # Reverter saldo antigo
-        cursor.execute('SELECT balance FROM wallets WHERE id = %s', (old['wallet_id'],))
+        cursor.execute('SELECT balance FROM wallets WHERE id = %s AND username = %s', (old['wallet_id'], username))
         result = cursor.fetchone()
         if result:
             old_balance = result[0]
             old_total = old.get('total_amount', old['amount'])
+            
             if old['type'] == 'income':
                 new_old_balance = old_balance - old_total
-            else:
+            elif old['type'] in ['expense', 'investment']:
                 new_old_balance = old_balance + old_total
+            else:
+                new_old_balance = old_balance
+            
             cursor.execute('UPDATE wallets SET balance = %s WHERE id = %s', (new_old_balance, old['wallet_id']))
+            print(f'↩️ Saldo revertido: {old_balance} -> {new_old_balance}')
         
-        # Atualizar transação
+        # Recalcular total_amount
+        total_amount = data['amount'] + data.get('taxa', 0)
+        print(f'🔧 total_amount: {data["amount"]} + {data.get("taxa", 0)} = {total_amount}')
+        
         cursor.execute('''
             UPDATE transactions SET
                 type = %s,
@@ -239,60 +348,76 @@ def update_transaction(username, transaction_id, data):
                 amount = %s,
                 taxa = %s,
                 total_amount = %s,
+                total_recebido = %s,
                 category_id = %s,
                 wallet_id = %s,
                 date = %s,
                 notes = %s
             WHERE id = %s AND username = %s
-        ''', (data['type'], data['description'], data['amount'], data.get('taxa', 0), data.get('total_amount', data['amount'] + data.get('taxa', 0)), data['category_id'], data['wallet_id'], data['date'], data.get('notes', ''), transaction_id, username))
+        ''', (data['type'], data['description'], data['amount'], data.get('taxa', 0), total_amount, data.get('total_recebido'), data['category_id'], data['wallet_id'], data['date'], data.get('notes', ''), transaction_id, username))
         
-        # Aplicar novo saldo
-        cursor.execute('SELECT balance FROM wallets WHERE id = %s', (data['wallet_id'],))
+        cursor.execute('SELECT balance FROM wallets WHERE id = %s AND username = %s', (data['wallet_id'], username))
         result = cursor.fetchone()
         if result:
             current_balance = result[0]
-            new_total = data.get('total_amount', data['amount'] + data.get('taxa', 0))
+            
             if data['type'] == 'income':
-                new_balance = current_balance + new_total
+                new_balance = current_balance + total_amount
+            elif data['type'] in ['expense', 'investment']:
+                new_balance = current_balance - total_amount
             else:
-                new_balance = current_balance - new_total
+                new_balance = current_balance
+            
             cursor.execute('UPDATE wallets SET balance = %s WHERE id = %s', (new_balance, data['wallet_id']))
+            print(f'✅ Saldo aplicado: {current_balance} -> {new_balance}')
         
         conn.commit()
+        print(f'✅ Transação atualizada!')
+        print('=' * 60)
     return True
 
 def delete_transaction(username, transaction_id):
+    """Eliminar transação e reverter saldo da carteira"""
+    print('=' * 60)
+    print(f'🗑️ DELETE_TRANSACTION - ID: {transaction_id}')
+    print('=' * 60)
+    
     with get_db() as conn:
         cursor = conn.cursor()
         
-        # Buscar transação
         cursor.execute('SELECT * FROM transactions WHERE id = %s AND username = %s', (transaction_id, username))
         trans = cursor.fetchone()
         if not trans:
+            print(f'❌ Erro: Transação não encontrada')
             return False
         
         trans_cols = [desc[0] for desc in cursor.description]
         trans_data = dict(zip(trans_cols, trans))
         
-        # Reverter saldo
-        cursor.execute('SELECT balance FROM wallets WHERE id = %s', (trans_data['wallet_id'],))
+        cursor.execute('SELECT balance FROM wallets WHERE id = %s AND username = %s', (trans_data['wallet_id'], username))
         result = cursor.fetchone()
         if result:
             current_balance = result[0]
             total_amount = trans_data.get('total_amount', trans_data['amount'])
+            
             if trans_data['type'] == 'income':
                 new_balance = current_balance - total_amount
-            else:
+            elif trans_data['type'] in ['expense', 'investment']:
                 new_balance = current_balance + total_amount
+            else:
+                new_balance = current_balance
+            
             cursor.execute('UPDATE wallets SET balance = %s WHERE id = %s', (new_balance, trans_data['wallet_id']))
+            print(f'↩️ Saldo revertido: {current_balance} -> {new_balance}')
         
-        # Eliminar transação
         cursor.execute('DELETE FROM transactions WHERE id = %s AND username = %s', (transaction_id, username))
-        
         conn.commit()
+        print(f'✅ Transação eliminada!')
+        print('=' * 60)
     return True
 
 def get_user_transactions(username, limit=None):
+    """APENAS LEITURA - SEM RECÁLCULOS"""
     with get_db() as conn:
         cursor = conn.cursor(cursor_factory=RealDictCursor)
         query = 'SELECT * FROM transactions WHERE username = %s ORDER BY date DESC, created_at DESC'
@@ -325,6 +450,13 @@ def get_user_investments(username):
                 inv_dict['date'] = inv_dict['date'].strftime('%Y-%m-%d')
             if inv_dict.get('created_at') and hasattr(inv_dict['created_at'], 'strftime'):
                 inv_dict['created_at'] = inv_dict['created_at'].strftime('%Y-%m-%d %H:%M:%S')
+            
+            total_recebido = inv_dict.get('total_recebido', 0)
+            if total_recebido > 0:
+                inv_dict['retorno'] = total_recebido - inv_dict['amount']
+            else:
+                inv_dict['retorno'] = None
+            
             result.append(inv_dict)
         
         return result
@@ -338,13 +470,11 @@ def transfer_money(username, from_wallet_id, to_wallet_id, amount, description, 
     with get_db() as conn:
         cursor = conn.cursor()
         
-        # Verificar saldo da carteira de origem
         cursor.execute('SELECT balance FROM wallets WHERE id = %s AND username = %s', (from_wallet_id, username))
         result = cursor.fetchone()
         if not result or result[0] < amount:
             return False
         
-        # Buscar categorias
         cursor.execute('SELECT id FROM categories WHERE username = %s AND name = %s AND type = %s', (username, 'Outros', 'expense'))
         from_cat = cursor.fetchone()
         from_cat_id = from_cat[0] if from_cat else None
@@ -353,11 +483,9 @@ def transfer_money(username, from_wallet_id, to_wallet_id, amount, description, 
         to_cat = cursor.fetchone()
         to_cat_id = to_cat[0] if to_cat else None
         
-    # Criar transação de saída
     if from_cat_id:
         create_transaction(username, 'expense', f'Transferência: {description}', amount, from_cat_id, from_wallet_id, date, f'Transferência para {to_wallet_id}')
     
-    # Criar transação de entrada
     if to_cat_id:
         create_transaction(username, 'income', f'Transferência: {description}', amount, to_cat_id, to_wallet_id, date, f'Transferência de {from_wallet_id}')
     
@@ -378,9 +506,9 @@ def gerar_alertas(username):
     if not transactions:
         return [{'tipo': 'info', 'mensagem': 'Comece a registar suas transações para receber alertas personalizados!'}]
     
-    total_received = sum(t.get('total_amount', t['amount']) for t in transactions if t['type'] == 'income')
-    total_expenses = sum(t.get('total_amount', t['amount']) for t in transactions if t['type'] == 'expense')
-    total_invested = sum(t.get('total_amount', t['amount']) for t in transactions if t['type'] == 'investment')
+    total_received = sum(t.get('total_amount') or t.get('amount') or 0 for t in transactions if t['type'] == 'income')
+    total_expenses = sum(t.get('total_amount') or t.get('amount') or 0 for t in transactions if t['type'] == 'expense')
+    total_invested = sum(t.get('total_amount') or t.get('amount') or 0 for t in transactions if t['type'] == 'investment')
     total_balance = sum(w['balance'] for w in wallets)
     
     alertas = []
@@ -469,10 +597,8 @@ def register():
         password_hash = generate_password_hash(password)
         create_user(username, password_hash, nome, apelido, pais, moeda)
         
-        # Criar carteira padrão
         create_wallet(username, 'Dinheiro em Mão', 'physical_cash', 0, '💰')
         
-        # Criar categorias padrão
         categorias_padrao = {
             'income': [
                 ('Salário', '💼'), ('Freelance', '💻'), ('Vendas', '🛒'),
@@ -508,11 +634,11 @@ def dashboard():
     user = get_user(username)
     wallets = get_user_wallets(username)
     transactions = get_user_transactions(username, 5)
-    
     all_transactions = get_user_transactions(username)
-    total_received = sum(t.get('total_amount', t['amount']) for t in all_transactions if t['type'] == 'income')
-    total_expenses = sum(t.get('total_amount', t['amount']) for t in all_transactions if t['type'] == 'expense')
-    total_invested = sum(t.get('total_amount', t['amount']) for t in all_transactions if t['type'] == 'investment')
+    
+    total_received = sum(t.get('total_amount') or t.get('amount') or 0 for t in all_transactions if t['type'] == 'income')
+    total_expenses = sum(t.get('total_amount') or t.get('amount') or 0 for t in all_transactions if t['type'] == 'expense')
+    total_invested = sum(t.get('total_amount') or t.get('amount') or 0 for t in all_transactions if t['type'] == 'investment')
     total_balance = sum(w['balance'] for w in wallets)
     
     moeda = user.get('moeda', 'MZN')
@@ -544,18 +670,54 @@ def gastos():
     moeda = user.get('moeda', 'MZN')
     simbolo = MOEDAS.get(moeda, {}).get('simbolo', 'MT')
     
+    print('=' * 80)
+    print(f'🔍 GASTOS - Utilizador: {username}')
+    print(f'📌 Método: {request.method}')
+    print('=' * 80)
+    
     if request.method == 'POST':
+        print('📥 DADOS RECEBIDOS:')
+        for key, value in request.form.items():
+            print(f'  {key}: {value}')
+        print('=' * 80)
+        
         description = request.form.get('description')
-        amount = float(request.form.get('amount'))
-        taxa = float(request.form.get('taxa', 0))
-        total_amount = float(request.form.get('total_amount', amount + taxa))
+        amount_str = request.form.get('amount')
+        taxa_str = request.form.get('taxa', '0')
+        total_amount_str = request.form.get('total_amount')
         category_id = request.form.get('category_id')
         wallet_id = request.form.get('wallet_id')
         date = request.form.get('date') or datetime.now().strftime('%Y-%m-%d')
         transaction_id = request.form.get('transaction_id')
         notes = request.form.get('notes', '')
         
+        try:
+            amount = float(amount_str) if amount_str else 0
+            taxa = float(taxa_str) if taxa_str else 0
+        except ValueError:
+            amount = 0
+            taxa = 0
+        
+        # Usar total_amount se veio do frontend, senão calcular
+        if total_amount_str and float(total_amount_str) > 0:
+            total_amount = float(total_amount_str)
+            print(f'✅ total_amount do frontend: {total_amount}')
+        else:
+            total_amount = amount + taxa
+            print(f'🔧 total_amount calculado: {amount} + {taxa} = {total_amount}')
+        
+        print(f'💲 amount: {amount}, taxa: {taxa}, total: {total_amount}')
+        print('=' * 80)
+        
+        wallet = get_wallet_by_id(wallet_id, username)
+        if not wallet:
+            print(f'❌ Carteira não encontrada: {wallet_id}')
+            return redirect(url_for('gastos'))
+        
+        print(f'🏦 Saldo atual: {wallet["balance"]}')
+        
         if transaction_id:
+            print(f'✏️ EDITANDO: {transaction_id}')
             update_transaction(username, transaction_id, {
                 'type': 'expense',
                 'description': description,
@@ -568,13 +730,20 @@ def gastos():
                 'notes': notes
             })
         else:
+            print(f'➕ CRIANDO NOVO GASTO')
             create_transaction(username, 'expense', description, amount, category_id, wallet_id, date, notes, taxa, total_amount)
         
+        wallet_after = get_wallet_by_id(wallet_id, username)
+        if wallet_after:
+            print(f'🏦 Saldo após: {wallet_after["balance"]}')
+        
+        print('=' * 80)
         return redirect(url_for('gastos'))
     
+    # GET - Carregar dados
     transactions = get_user_transactions(username)
     gastos = [t for t in transactions if t['type'] == 'expense']
-    total_gastos = sum(t.get('total_amount', t['amount']) for t in gastos)
+    total_gastos = sum(t.get('total_amount') or t.get('amount') or 0 for t in gastos)
     
     edit_id = request.args.get('edit_id')
     
@@ -605,14 +774,26 @@ def recebimentos():
     
     if request.method == 'POST':
         description = request.form.get('description')
-        amount = float(request.form.get('amount'))
-        taxa = float(request.form.get('taxa', 0))
-        total_amount = float(request.form.get('total_amount', amount + taxa))
+        amount_str = request.form.get('amount')
+        taxa_str = request.form.get('taxa', '0')
+        total_amount_str = request.form.get('total_amount')
         category_id = request.form.get('category_id')
         wallet_id = request.form.get('wallet_id')
         date = request.form.get('date') or datetime.now().strftime('%Y-%m-%d')
         transaction_id = request.form.get('transaction_id')
         notes = request.form.get('notes', '')
+        
+        try:
+            amount = float(amount_str) if amount_str else 0
+            taxa = float(taxa_str) if taxa_str else 0
+        except ValueError:
+            amount = 0
+            taxa = 0
+        
+        if total_amount_str and float(total_amount_str) > 0:
+            total_amount = float(total_amount_str)
+        else:
+            total_amount = amount + taxa
         
         if transaction_id:
             update_transaction(username, transaction_id, {
@@ -633,7 +814,7 @@ def recebimentos():
     
     transactions = get_user_transactions(username)
     recebimentos = [t for t in transactions if t['type'] == 'income']
-    total_recebimentos = sum(t.get('total_amount', t['amount']) for t in recebimentos)
+    total_recebimentos = sum(t.get('total_amount') or t.get('amount') or 0 for t in recebimentos)
     
     edit_id = request.args.get('edit_id')
     
@@ -664,6 +845,7 @@ def investimentos():
     if request.method == 'POST':
         description = request.form.get('description')
         amount = float(request.form.get('amount'))
+        total_recebido = float(request.form.get('total_recebido', 0))
         wallet_id = request.form.get('wallet_id')
         date = request.form.get('date') or datetime.now().strftime('%Y-%m-%d')
         transaction_id = request.form.get('transaction_id')
@@ -674,6 +856,7 @@ def investimentos():
                 'type': 'investment',
                 'description': description,
                 'amount': amount,
+                'total_recebido': total_recebido,
                 'wallet_id': wallet_id,
                 'date': date,
                 'notes': notes
@@ -684,12 +867,14 @@ def investimentos():
             if not cat_id:
                 cat_id = create_category(username, 'Investimento', 'expense', '📈')
             
-            create_transaction(username, 'investment', description, amount, cat_id, wallet_id, date, notes)
+            create_transaction(username, 'investment', description, amount, cat_id, wallet_id, date, notes, 0, amount, total_recebido)
         
         return redirect(url_for('investimentos'))
     
     investments = get_user_investments(username)
-    total_invested = sum(t.get('total_amount', t['amount']) for t in investments)
+    total_invested = sum(t.get('total_amount') or t.get('amount') or 0 for t in investments)
+    total_ganhos = sum(t.get('retorno', 0) for t in investments if t.get('retorno', 0) > 0)
+    total_perdas = sum(abs(t.get('retorno', 0)) for t in investments if t.get('retorno', 0) < 0)
     
     edit_id = request.args.get('edit_id')
     
@@ -702,6 +887,8 @@ def investimentos():
         wallets=wallets,
         investments=investments,
         total_invested=total_invested,
+        total_ganhos=total_ganhos,
+        total_perdas=total_perdas,
         edit_id=edit_id
     )
 
@@ -926,22 +1113,22 @@ def relatorios():
     moeda = user.get('moeda', 'MZN')
     simbolo = MOEDAS.get(moeda, {}).get('simbolo', 'MT')
     
-    total_received = sum(t.get('total_amount', t['amount']) for t in transactions if t['type'] == 'income')
-    total_expenses = sum(t.get('total_amount', t['amount']) for t in transactions if t['type'] == 'expense')
-    total_invested = sum(t.get('total_amount', t['amount']) for t in transactions if t['type'] == 'investment')
+    total_received = sum(t.get('total_amount') or t.get('amount') or 0 for t in transactions if t['type'] == 'income')
+    total_expenses = sum(t.get('total_amount') or t.get('amount') or 0 for t in transactions if t['type'] == 'expense')
+    total_invested = sum(t.get('total_amount') or t.get('amount') or 0 for t in transactions if t['type'] == 'investment')
     
     gastos_categoria = {}
     for t in transactions:
         if t['type'] == 'expense':
             cat = t['category_id']
-            amount = t.get('total_amount', t['amount'])
+            amount = t.get('total_amount') or t.get('amount') or 0
             gastos_categoria[cat] = gastos_categoria.get(cat, 0) + amount
     
     receitas_categoria = {}
     for t in transactions:
         if t['type'] == 'income':
             cat = t['category_id']
-            amount = t.get('total_amount', t['amount'])
+            amount = t.get('total_amount') or t.get('amount') or 0
             receitas_categoria[cat] = receitas_categoria.get(cat, 0) + amount
     
     transacoes_mes = {}
@@ -949,7 +1136,7 @@ def relatorios():
         mes = t['date'][:7]
         if mes not in transacoes_mes:
             transacoes_mes[mes] = {'income': 0, 'expense': 0, 'investment': 0}
-        amount = t.get('total_amount', t['amount'])
+        amount = t.get('total_amount') or t.get('amount') or 0
         transacoes_mes[mes][t['type']] += amount
     
     cat_names = {c['id']: c['name'] for c in categories_expense}

@@ -9,18 +9,18 @@
 </div>
 
 {% if mensagem %}
-    <div class="alert alert-success" id="successToast">{{ mensagem }}</div>
+    <div class="alert alert-success">{{ mensagem }}</div>
 {% endif %}
 
 {% if erro %}
-    <div class="alert alert-danger" id="errorToast">{{ erro }}</div>
+    <div class="alert alert-danger">{{ erro }}</div>
 {% endif %}
 
 <div class="row">
     <div class="col">
         <div class="card">
             <h3>📤 Depositar / Levantar</h3>
-            <form method="POST" id="transferForm">
+            <form method="POST">
                 <div class="form-group">
                     <label>📤 De (Origem)</label>
                     <select name="from_wallet_id" required>
@@ -118,7 +118,21 @@ function confirmTransfer() {
         return false;
     }
     
-    return confirm(`Confirmar transferência de ${amount.value} ${'{{ simbolo }}'}?`);
+    return confirm(`Confirmar transferência de ${amount.value} {{ simbolo }}?`);
+}
+
+function showToast(message, type) {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
 }
 </script>
 {% endblock %}

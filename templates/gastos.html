@@ -6,7 +6,7 @@
 <div class="page-header">
     <div class="header-actions">
         <h1>💸 Gastos</h1>
-        <button class="btn btn-primary" onclick="openModal('gasto')">➕ Novo Gasto</button>
+        <button class="btn btn-primary" onclick="abrirModal()">➕ Novo Gasto</button>
     </div>
     <p class="page-subtitle">Registe e acompanhe seus gastos</p>
 </div>
@@ -34,6 +34,13 @@
                                 <span class="taxa-badge">💰 Taxa: {{ "%.2f"|format(t.taxa) }} {{ simbolo }}</span>
                             {% endif %}
                         </div>
+                        <div class="transaction-wallet">
+                            {% for wallet in wallets %}
+                                {% if wallet.id == t.wallet_id %}
+                                    💳 {{ wallet.name }}
+                                {% endif %}
+                            {% endfor %}
+                        </div>
                     </div>
                 </div>
                 <div class="transaction-actions">
@@ -44,8 +51,8 @@
                         {% endif %}
                     </div>
                     <div class="action-buttons">
-                        <button class="btn-edit" onclick="openEditModal('gasto', '{{ t.id }}')" title="Editar">✏️</button>
-                        <button class="btn-delete" onclick="openDeleteModal('{{ t.id }}', '{{ t.description }}')" title="Eliminar">🗑️</button>
+                        <button class="btn-edit" onclick="abrirEditar('{{ t.id }}')" title="Editar">✏️</button>
+                        <button class="btn-delete" onclick="abrirEliminar('{{ t.id }}', '{{ t.description }}')" title="Eliminar">🗑️</button>
                     </div>
                 </div>
             </div>
@@ -55,10 +62,10 @@
     {% endif %}
 </div>
 
-<!-- ===== DADOS PARA O MODAL ===== -->
+<!-- ===== MODAL ===== -->
 <div style="display:none;">
     <div id="gastoFormData">
-        <input type="hidden" id="edit_mode" value="0">
+        <input type="hidden" id="edit_id" name="transaction_id" value="">
         
         <div class="form-group">
             <label>Descrição</label>
@@ -90,19 +97,19 @@
             </select>
         </div>
         
-        <!-- Campo Taxa - sempre visível, desabilitado para Dinheiro em Mão -->
+        <!-- Campo Taxa -->
         <div class="form-group" id="taxaGroup">
             <label>Taxa da Transação ({{ simbolo }})</label>
             <input type="number" step="0.01" id="gasto_taxa" name="taxa" placeholder="0.00" value="0">
             <small id="taxaHint" style="color: var(--text-secondary);">Taxa de levantamento, transferência, etc.</small>
         </div>
         
-        <!-- Valor Total - apenas exibição -->
-        <div class="form-group" style="background: var(--bg-primary); border-radius: 8px; padding: 12px;">
-            <label style="font-weight: bold;">💰 Valor Total ({{ simbolo }})</label>
+        <!-- Campo Valor Total -->
+        <div class="form-group" style="background: var(--bg-primary); border-radius: 8px; padding: 12px; border: 2px solid var(--primary);">
+            <label style="font-weight: bold; color: var(--primary);">💰 VALOR TOTAL ({{ simbolo }})</label>
             <input type="text" id="gasto_total_display" readonly 
-                   style="background: transparent; font-weight: bold; color: var(--text-primary); font-size: 20px; border: none; padding: 4px 0; width: 100%;">
-            <small style="color: var(--text-secondary);">Valor + Taxa (calculado automaticamente)</small>
+                   style="background: transparent; font-weight: bold; color: var(--primary); font-size: 24px; border: none; padding: 4px 0; width: 100%; text-align: center;">
+            <small style="color: var(--text-secondary); display: block; text-align: center;">Valor + Taxa (calculado automaticamente)</small>
         </div>
         
         <div class="form-group">
@@ -120,7 +127,9 @@
 </div>
 
 <script>
-// Dados das transações para edição
+// ============================================
+// DADOS PARA EDIÇÃO
+// ============================================
 const gastosData = {
     {% for t in transactions %}
         "{{ t.id }}": {
@@ -135,201 +144,164 @@ const gastosData = {
     {% endfor %}
 };
 
-function openModal(tipo) {
+console.log('🚀 Página de Gastos carregada!');
+
+// ============================================
+// CALCULAR TOTAL
+// ============================================
+function calcularTotal() {
+    const amount = parseFloat(document.getElementById('gasto_amount')?.value) || 0;
+    const taxa = parseFloat(document.getElementById('gasto_taxa')?.value) || 0;
+    const total = amount + taxa;
+    
+    const display = document.getElementById('gasto_total_display');
+    const hidden = document.getElementById('gasto_total');
+    
+    if (display) display.value = total.toFixed(2) + ' {{ simbolo }}';
+    if (hidden) hidden.value = total.toFixed(2);
+    
+    console.log('💲 Total calculado:', { amount, taxa, total });
+    return total;
+}
+
+// ============================================
+// CONFIGURAR CARTEIRA
+// ============================================
+function configurarCarteira() {
+    const walletSelect = document.getElementById('gasto_wallet_id');
+    const taxaGroup = document.getElementById('taxaGroup');
+    const taxaInput = document.getElementById('gasto_taxa');
+    const taxaHint = document.getElementById('taxaHint');
+    
+    if (!walletSelect) return;
+    
+    const selected = walletSelect.options[walletSelect.selectedIndex];
+    const isCash = selected?.getAttribute('data-type') === 'physical_cash';
+    
+    // Mostrar/esconder taxa
+    if (taxaGroup) {
+        taxaGroup.style.display = isCash ? 'none' : 'block';
+    }
+    
+    // Habilitar/desabilitar taxa
+    if (taxaInput) {
+        taxaInput.disabled = isCash;
+        taxaInput.style.opacity = isCash ? '0.5' : '1';
+        taxaInput.style.backgroundColor = isCash ? '#f0f0f0' : '';
+        if (isCash) {
+            taxaInput.value = '0';
+            taxaInput.placeholder = 'Taxa indisponível';
+        } else {
+            taxaInput.placeholder = '0.00';
+        }
+    }
+    
+    if (taxaHint) {
+        taxaHint.textContent = isCash ? '💰 Taxa indisponível para Dinheiro em Mão' : 'Taxa de levantamento, transferência, etc.';
+        taxaHint.style.color = isCash ? '#EF4444' : 'var(--text-secondary)';
+    }
+    
+    calcularTotal();
+}
+
+// ============================================
+// ABRIR MODAL (NOVO)
+// ============================================
+function abrirModal() {
+    console.log('🔍 Abrindo modal - NOVO');
+    
     const modal = document.getElementById('modalOverlay');
-    const title = document.getElementById('modalTitle');
     const form = document.getElementById('modalForm');
-    const submitBtn = document.getElementById('modalSubmitBtn');
     const fields = document.getElementById('modalFormFields');
     
-    document.getElementById('modalTransactionId').value = '';
+    // Resetar campos
+    document.getElementById('edit_id').value = '';
+    document.getElementById('modalTitle').textContent = '💸 Novo Gasto';
+    document.getElementById('modalSubmitBtn').textContent = '💸 Registrar Gasto';
+    form.action = "{{ url_for('gastos') }}";
     
-    // Copiar os campos
-    const source = document.getElementById(tipo + 'FormData');
-    if (source) {
-        fields.innerHTML = source.innerHTML;
-    }
+    // Copiar campos
+    const source = document.getElementById('gastoFormData');
+    if (source) fields.innerHTML = source.innerHTML;
     
-    if (tipo === 'gasto') {
-        form.action = "{{ url_for('gastos') }}";
-        title.textContent = '💸 Novo Gasto';
-        submitBtn.textContent = '💸 Registrar Gasto';
-    }
+    // Data atual
+    const dateInput = document.getElementById('gasto_date');
+    if (dateInput) dateInput.value = new Date().toISOString().split('T')[0];
     
-    // Preencher data
-    const dateInput = fields.querySelector('input[type="date"]');
-    if (dateInput && !dateInput.value) {
-        dateInput.value = new Date().toISOString().split('T')[0];
-    }
-    
-    // Configurar a lógica da taxa
-    setupTaxaLogic();
+    // Configurar eventos
+    setTimeout(() => {
+        configurarCarteira();
+        
+        document.getElementById('gasto_amount')?.addEventListener('input', calcularTotal);
+        document.getElementById('gasto_taxa')?.addEventListener('input', calcularTotal);
+        document.getElementById('gasto_wallet_id')?.addEventListener('change', configurarCarteira);
+        
+        calcularTotal();
+    }, 200);
     
     modal.classList.add('open');
 }
 
-function openEditModal(tipo, id) {
-    // Buscar os dados da transação
+// ============================================
+// ABRIR MODAL (EDIÇÃO)
+// ============================================
+function abrirEditar(id) {
+    console.log('🔍 Abrindo modal - EDIÇÃO ID:', id);
+    
     const data = gastosData[id];
     if (!data) {
-        showToast('Erro ao carregar dados para edição', 'error');
+        alert('Erro ao carregar dados!');
         return;
     }
     
     const modal = document.getElementById('modalOverlay');
-    const title = document.getElementById('modalTitle');
     const form = document.getElementById('modalForm');
-    const submitBtn = document.getElementById('modalSubmitBtn');
     const fields = document.getElementById('modalFormFields');
-    const transactionId = document.getElementById('modalTransactionId');
     
-    // Copiar os campos
+    // Copiar campos
     const source = document.getElementById('gastoFormData');
-    if (source) {
-        fields.innerHTML = source.innerHTML;
-    }
+    if (source) fields.innerHTML = source.innerHTML;
     
-    // Preencher os campos com os dados
-    const description = fields.querySelector('#gasto_description');
-    const amount = fields.querySelector('#gasto_amount');
-    const taxa = fields.querySelector('#gasto_taxa');
-    const category = fields.querySelector('#gasto_category_id');
-    const wallet = fields.querySelector('#gasto_wallet_id');
-    const date = fields.querySelector('#gasto_date');
-    const notes = fields.querySelector('#gasto_notes');
+    // Preencher dados
+    document.getElementById('edit_id').value = id;
+    document.getElementById('gasto_description').value = data.description || '';
+    document.getElementById('gasto_amount').value = data.amount || '';
+    document.getElementById('gasto_taxa').value = data.taxa || 0;
+    document.getElementById('gasto_category_id').value = data.category_id || '';
+    document.getElementById('gasto_wallet_id').value = data.wallet_id || '';
+    document.getElementById('gasto_date').value = data.date || new Date().toISOString().split('T')[0];
+    document.getElementById('gasto_notes').value = data.notes || '';
     
-    if (description) description.value = data.description || '';
-    if (amount) amount.value = data.amount || '';
-    if (taxa) taxa.value = data.taxa || 0;
-    if (category) category.value = data.category_id || '';
-    if (wallet) wallet.value = data.wallet_id || '';
-    if (date) date.value = data.date || new Date().toISOString().split('T')[0];
-    if (notes) notes.value = data.notes || '';
-    
-    // Definir ação e título
+    document.getElementById('modalTitle').textContent = '✏️ Editar Gasto';
+    document.getElementById('modalSubmitBtn').textContent = '💾 Atualizar Gasto';
     form.action = "{{ url_for('gastos') }}";
-    title.textContent = '✏️ Editar Gasto';
-    submitBtn.textContent = '💾 Atualizar Gasto';
-    transactionId.value = id;
     
-    // Configurar a lógica da taxa
-    setupTaxaLogic();
+    // Configurar eventos
+    setTimeout(() => {
+        configurarCarteira();
+        
+        document.getElementById('gasto_amount')?.addEventListener('input', calcularTotal);
+        document.getElementById('gasto_taxa')?.addEventListener('input', calcularTotal);
+        document.getElementById('gasto_wallet_id')?.addEventListener('change', configurarCarteira);
+        
+        calcularTotal();
+    }, 200);
     
     modal.classList.add('open');
 }
 
-function setupTaxaLogic() {
-    // Buscar os elementos do modal
-    const modalContent = document.getElementById('modalFormFields');
-    if (!modalContent) return;
-    
-    const walletSelect = modalContent.querySelector('#gasto_wallet_id');
-    const taxaInput = modalContent.querySelector('#gasto_taxa');
-    const amountInput = modalContent.querySelector('#gasto_amount');
-    const totalDisplay = modalContent.querySelector('#gasto_total_display');
-    const totalHidden = modalContent.querySelector('#gasto_total');
-    const taxaHint = modalContent.querySelector('#taxaHint');
-    const taxaGroup = modalContent.querySelector('#taxaGroup');
-    
-    // Função para verificar se é Dinheiro em Mão
-    function isCashWallet() {
-        if (!walletSelect) return true;
-        const selectedOption = walletSelect.options[walletSelect.selectedIndex];
-        const walletType = selectedOption?.getAttribute('data-type') || '';
-        return walletType === 'physical_cash';
-    }
-    
-    // Função para atualizar o total
-    function updateTotal() {
-        const amount = parseFloat(amountInput?.value) || 0;
-        const taxa = parseFloat(taxaInput?.value) || 0;
-        const total = amount + taxa;
-        
-        if (totalDisplay) {
-            totalDisplay.value = total.toFixed(2) + ' {{ simbolo }}';
-        }
-        if (totalHidden) {
-            totalHidden.value = total.toFixed(2);
-        }
-    }
-    
-    // Função para verificar o tipo de carteira
-    function checkWalletType() {
-        const isCash = isCashWallet();
-        
-        // Habilitar/desabilitar campo de taxa
-        if (taxaInput) {
-            taxaInput.disabled = isCash;
-            taxaInput.style.opacity = isCash ? '0.5' : '1';
-            taxaInput.style.cursor = isCash ? 'not-allowed' : 'text';
-            taxaInput.style.backgroundColor = isCash ? '#f0f0f0' : '';
-            
-            if (isCash) {
-                taxaInput.value = '0';
-                taxaInput.placeholder = 'Taxa indisponível';
-            } else {
-                taxaInput.placeholder = '0.00';
-            }
-        }
-        
-        // Atualizar hint
-        if (taxaHint) {
-            if (isCash) {
-                taxaHint.textContent = '💰 Taxa indisponível para Dinheiro em Mão';
-                taxaHint.style.color = '#EF4444';
-            } else {
-                taxaHint.textContent = 'Taxa de levantamento, transferência, etc.';
-                taxaHint.style.color = 'var(--text-secondary)';
-            }
-        }
-        
-        updateTotal();
-    }
-    
-    // Adicionar eventos
-    if (walletSelect) {
-        // Remover eventos antigos para evitar duplicação
-        const newWalletSelect = walletSelect.cloneNode(true);
-        walletSelect.parentNode.replaceChild(newWalletSelect, walletSelect);
-        
-        // Adicionar evento ao novo elemento
-        newWalletSelect.addEventListener('change', function() {
-            checkWalletType();
-        });
-        
-        // Atualizar referência
-        const updatedWalletSelect = modalContent.querySelector('#gasto_wallet_id');
-        if (updatedWalletSelect) {
-            updatedWalletSelect.addEventListener('change', checkWalletType);
-        }
-    }
-    
-    // Adicionar eventos para inputs
-    if (amountInput) {
-        amountInput.addEventListener('input', updateTotal);
-    }
-    
-    if (taxaInput) {
-        taxaInput.addEventListener('input', updateTotal);
-    }
-    
-    // Executar inicialmente
-    setTimeout(function() {
-        checkWalletType();
-        updateTotal();
-    }, 300);
+// ============================================
+// ELIMINAR
+// ============================================
+function abrirEliminar(id, nome) {
+    document.getElementById('deleteItemName').textContent = nome || 'Item';
+    document.getElementById('deleteConfirmBtn').href = "{{ url_for('deletar_transacao', transaction_id='') }}" + id;
+    document.getElementById('deleteModalOverlay').classList.add('open');
 }
 
-function openDeleteModal(id, name) {
-    const modal = document.getElementById('deleteModalOverlay');
-    const confirmBtn = document.getElementById('deleteConfirmBtn');
-    const itemName = document.getElementById('deleteItemName');
-    
-    itemName.textContent = name || 'Item';
-    confirmBtn.href = "{{ url_for('deletar_transacao', transaction_id='') }}" + id;
-    modal.classList.add('open');
-}
-
+// ============================================
+// FECHAR MODAIS
+// ============================================
 function closeModal() {
     document.getElementById('modalOverlay').classList.remove('open');
 }
@@ -338,31 +310,26 @@ function closeDeleteModal() {
     document.getElementById('deleteModalOverlay').classList.remove('open');
 }
 
-// Fechar modais ao clicar fora
+// Fechar ao clicar fora
 document.addEventListener('click', function(e) {
-    const modal = document.getElementById('modalOverlay');
-    const deleteModal = document.getElementById('deleteModalOverlay');
-    
-    if (e.target === modal) {
-        closeModal();
-    }
-    if (e.target === deleteModal) {
-        closeDeleteModal();
-    }
+    if (e.target === document.getElementById('modalOverlay')) closeModal();
+    if (e.target === document.getElementById('deleteModalOverlay')) closeDeleteModal();
 });
 
-function showToast(message, type) {
-    const container = document.getElementById('toastContainer');
-    if (!container) return;
-    
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${type}`;
-    toast.textContent = message;
-    container.appendChild(toast);
-    
-    setTimeout(() => {
-        toast.remove();
-    }, 3000);
-}
+// ============================================
+// SUBMISSÃO - GARANTIR TOTAL
+// ============================================
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('modalForm')?.addEventListener('submit', function(e) {
+        const amount = parseFloat(document.getElementById('gasto_amount')?.value) || 0;
+        const taxa = parseFloat(document.getElementById('gasto_taxa')?.value) || 0;
+        const total = amount + taxa;
+        
+        document.getElementById('gasto_total').value = total.toFixed(2);
+        console.log('📤 Submetendo total:', total);
+    });
+});
+
+console.log('✅ FinControl - Gastos carregado!');
 </script>
 {% endblock %}
